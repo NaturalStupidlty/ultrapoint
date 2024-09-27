@@ -1,0 +1,5 @@
+.env
+assets/datasets/
+assets/logs/
+.idea/
+__pycache__
