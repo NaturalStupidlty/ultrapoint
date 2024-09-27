@@ -1,14 +1,7 @@
-"""
-This script exports detection/ description using pretrained model.
-
-Author: You-Yi Jau, Rui Zhu
-Date: 2019/12/12
-"""
-
 import argparse
-import yaml
+import dotenv
 import os
-from loguru import logger
+
 from pathlib import Path
 
 import numpy as np
@@ -20,15 +13,20 @@ import torch
 import torch.optim
 import torch.utils.data
 
-from utils.utils import getWriterPath
 from utils.utils import inv_warp_image_batch
+from utils.utils import prepare_experiment_directory
+from utils.logging import create_logger, logger, log_data_size
+from utils.utils import saveImg
+from utils.draw import draw_keypoints
+from utils.config_helpers import load_config, save_config
+from utils.torch_helpers import make_deterministic, set_precision, determine_device
 from models.model_wrap import SuperPointFrontend_torch, PointTracker
+from utils.loader import get_checkpoints_path
+from utils.var_dim import squeezeToNumpy
 
 
 def combine_heatmap(heatmap, inv_homographies, mask_2D, device="cpu"):
-    ## multiply heatmap with mask_2D
     heatmap = heatmap * mask_2D
-
     heatmap = inv_warp_image_batch(
         heatmap, inv_homographies[0, :, :, :], device=device, mode="bilinear"
     )
@@ -40,13 +38,9 @@ def combine_heatmap(heatmap, inv_homographies, mask_2D, device="cpu"):
     heatmap = torch.sum(heatmap, dim=0)
     mask_2D = torch.sum(mask_2D, dim=0)
     return heatmap / mask_2D
-    pass
 
 
-#### end util functions
-
-
-def export_descriptor(config, output_dir, args):
+def export_descriptor(config, output_directory, args):
     """
     # input 2 images, output keypoints and correspondence
     save prediction:
@@ -60,16 +54,10 @@ def export_descriptor(config, output_dir, args):
             'homography': np (3,3)
             'matches': np [N3, 4]
     """
-    from utils.loader import get_checkpoints_path
-    from utils.var_dim import squeezeToNumpy
-
-    # basic settings
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    logger.info("train on device: %s", device)
-    with open(os.path.join(output_dir, "config.yml"), "w") as f:
-        yaml.dump(config, f, default_flow_style=False)
-    writer = SummaryWriter(getWriterPath(task=args.command, date=True))
-    save_path = get_checkpoints_path(output_dir)
+    device = determine_device()
+    logger.info(f"Training with device: {device}")
+    save_config(os.path.join(output_directory, "config.yaml"), config)
+    save_path = get_checkpoints_path(output_directory)
     save_output = save_path / "../predictions"
     os.makedirs(save_output, exist_ok=True)
 
@@ -95,6 +83,9 @@ def export_descriptor(config, output_dir, args):
     ## load pretrained
     val_agent = Val_model_heatmap(config["model"], device=device)
     val_agent.loadModel()
+
+    # writer from tensorboard
+    val_agent.writer = SummaryWriter(output_directory)
 
     ## tracker
     tracker = PointTracker(max_length=2, nn_thresh=val_agent.nn_thresh)
@@ -175,28 +166,19 @@ def export_descriptor(config, output_dir, args):
 
 
 @torch.no_grad()
-def export_detector_homoAdapt_gpu(config, output_dir, args):
+def export_detector_homo_adapt_gpu(config, output_directory, args):
     """
     input 1 images, output pseudo ground truth by homography adaptation.
     Save labels:
         pred:
             'prob' (keypoints): np (N1, 3)
     """
-    from utils.utils import pltImshow
-    from utils.utils import saveImg
-    from utils.draw import draw_keypoints
-
     # basic setting
     task = config["data"]["dataset"]
     export_task = config["data"]["export_folder"]
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    logger.info("train on device: %s", device)
-    with open(os.path.join(output_dir, "config.yml"), "w") as f:
-        yaml.dump(config, f, default_flow_style=False)
-    writer = SummaryWriter(
-        getWriterPath(task=args.command, exper_name=args.exper_name, date=True)
-    )
+    device = determine_device()
+    logger.info(f"Training with device: {device}")
+    save_config(os.path.join(output_directory, "config.yaml"), config)
 
     ## parameters
     nms_dist = config["model"]["nms"]  # 4
@@ -211,7 +193,7 @@ def export_detector_homoAdapt_gpu(config, output_dir, args):
     check_exist = True
 
     ## save data
-    save_path = Path(output_dir)
+    save_path = Path(output_directory)
     save_output = save_path
     save_output = save_output / "predictions" / export_task
     save_path = save_path / "checkpoints"
@@ -339,16 +321,7 @@ def export_detector_homoAdapt_gpu(config, output_dir, args):
     pass
 
 
-if __name__ == "__main__":
-    torch.set_default_dtype(torch.float32)
-
-    logging.basicConfig(
-        format="[%(asctime)s %(levelname)s] %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.INFO,
-    )
-
-    # add parser
+def parse_arguments():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command")
 
@@ -364,7 +337,7 @@ if __name__ == "__main__":
     p_train.set_defaults(func=export_descriptor)
 
     # using homography adaptation to export detection psuedo ground truth
-    p_train = subparsers.add_parser("export_detector_homoAdapt")
+    p_train = subparsers.add_parser("export_detector_homo_adapt_gpu")
     p_train.add_argument("config", type=str)
     p_train.add_argument("exper_name", type=str)
     p_train.add_argument("--eval", action="store_true")
@@ -374,17 +347,23 @@ if __name__ == "__main__":
     p_train.add_argument(
         "--debug", action="store_true", default=False, help="turn on debuging mode"
     )
-    # p_train.set_defaults(func=export_detector_homoAdapt)
-    p_train.set_defaults(func=export_detector_homoAdapt_gpu)
+    p_train.set_defaults(func=export_detector_homo_adapt_gpu)
 
-    args = parser.parse_args()
-    with open(args.config, "r") as f:
-        config = yaml.load(f)
-    print("check config!! ", config)
+    return parser.parse_args()
 
-    output_dir = os.path.join(os.getenv("EXPER_PATH"), args.exper_name)
-    os.makedirs(output_dir, exist_ok=True)
 
-    # with capture_outputs(os.path.join(output_dir, 'log')):
-    logger.info("Running command {}".format(args.command.upper()))
-    args.func(config, output_dir, args)
+def main():
+    dotenv.load_dotenv()
+    args = parse_arguments()
+    config = load_config(args.config)
+    set_precision(config["precision"])
+    make_deterministic(config["seed"])
+    output_directory = prepare_experiment_directory(
+        os.getenv("EXPER_PATH"), args.exper_name
+    )
+    create_logger(**config["logging"], logs_dir=output_directory)
+    args.func(config, output_directory)
+
+
+if __name__ == "__main__":
+    main()
