@@ -1,7 +1,6 @@
 data:
-#    name: 'synthetic_shapes'
     dataset: 'SyntheticDatasetGaussian'
-    primitives: 'draw_lines'
+    primitives: 'all'
     truncate: {draw_ellipses: 0.3, draw_stripes: 0.2, gaussian_noise: 0.1}
     cache_in_memory: true
     suffix: 'v6'

@@ -43,8 +43,7 @@ def img_overlap(img_r, img_g, img_gray):  # img_b repeat
 
 class TrainModelFrontend(object):
     """
-    # This is the base class for training classes. Wrap pytorch net to help training process.
-
+    This is the base class for training classes. Wrap pytorch net to help training process.
     """
 
     default_config = {

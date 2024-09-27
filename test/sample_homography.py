@@ -2,10 +2,8 @@
 """
 
 import numpy as np
-import tensorflow as tf
 import torch
 
-# corner_img = np.array([(0, 0), (img_w, 0), (0, img_h), (img_w, img_h)])
 import cv2
 from utils.utils import warp_points_np
 
