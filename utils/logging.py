@@ -15,6 +15,18 @@ def create_logger(level: str, logs_dir: str) -> None:
 
 def log_data_size(train_loader: DataLoader, config: dict, tag: str = "train") -> None:
     logger.info(
-        "== %s split size %d in %d batches"
+        "%s split size %d in %d batches"
         % (tag, len(train_loader) * config["model"]["batch_size"], len(train_loader))
     )
+
+
+def log_dict_attr(dictionary, attr=None):
+    for item in list(dictionary):
+        d = dictionary[item]
+        if attr == None:
+            logger.info(f"{item}: {d}")
+        else:
+            if hasattr(d, attr):
+                logger.info(f"{item}: {getattr(d, attr)}")
+            else:
+                logger.info(f"{item}: {len(d)}")

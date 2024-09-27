@@ -65,7 +65,7 @@ data:
 front_end_model: 'TrainModelHeatmap'
 
 model:
-    name: 'SuperPointNet_gauss2'
+    name: 'SuperPointNet'
     params: {
     }
     detector_loss:

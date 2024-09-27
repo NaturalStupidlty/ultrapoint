@@ -84,9 +84,9 @@ def export_descriptor(config, output_dir, args):
     task = config["data"]["dataset"]
     data = dataLoader(config, dataset=task)
     test_set, test_loader = data["test_set"], data["test_loader"]
-    from utils.print_tool import datasize
+    from utils.logging import log_data_size
 
-    datasize(test_loader, config, tag="test")
+    log_data_size(test_loader, config, tag="test")
 
     # model loading
     from utils.loader import get_module

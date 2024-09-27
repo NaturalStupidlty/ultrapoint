@@ -61,7 +61,7 @@ class TrainModelHeatmap(TrainModelFrontend):
         self.config = self.default_config
         self.config = dict_update(self.config, config)
         logger.info("Loaded TrainModeHeatmap")
-        logger.info("Config", self.config)
+        logger.info(f"Config: {self.config}")
 
         # init parameters
         self.device = device
@@ -78,14 +78,14 @@ class TrainModelHeatmap(TrainModelFrontend):
             self.gaussian = True
 
         if self.config["model"]["dense_loss"]["enable"]:
-            logger.info("Using dense loss!")
+            logger.info("Using dense loss")
             from utils.utils import descriptor_loss
 
             self.desc_params = self.config["model"]["dense_loss"]["params"]
             self.descriptor_loss = descriptor_loss
             self.desc_loss_type = "dense"
         elif self.config["model"]["sparse_loss"]["enable"]:
-            logger.info("Using sparse loss!")
+            logger.info("Using sparse loss")
             self.desc_params = self.config["model"]["sparse_loss"]["params"]
             from utils.loss_functions.sparse_loss import batch_descriptor_loss_sparse
 
@@ -275,7 +275,6 @@ class TrainModelHeatmap(TrainModelFrontend):
         ##### try to minimize the error ######
         add_res_loss = False
         if add_res_loss and n_iter % 10 == 0:
-            print("add_res_loss!!!")
             heatmap_org = self.get_heatmap(semi, det_loss_type)  # tensor []
             heatmap_org_nms_batch = self.heatmap_to_nms(
                 self.images_dict, heatmap_org, name="heatmap_org"

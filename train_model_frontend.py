@@ -87,7 +87,7 @@ class TrainModelFrontend(object):
 
         if self.config["model"]["dense_loss"]["enable"]:
             ## original superpoint paper uses dense loss
-            logger.info("Using dense loss!")
+            logger.info("Using dense loss")
             from utils.utils import descriptor_loss
 
             self.desc_params = self.config["model"]["dense_loss"]["params"]
@@ -95,7 +95,7 @@ class TrainModelFrontend(object):
             self.desc_loss_type = "dense"
         elif self.config["model"]["sparse_loss"]["enable"]:
             ## our sparse loss has similar performace, more efficient
-            logger.info("Using sparse loss!")
+            logger.info("Using sparse loss")
             self.desc_params = self.config["model"]["sparse_loss"]["params"]
             from utils.loss_functions.sparse_loss import batch_descriptor_loss_sparse
 
@@ -126,20 +126,15 @@ class TrainModelFrontend(object):
         # print important configs
         :return:
         """
-        logger.info("=" * 10, " config ", "=" * 10)
-
-        logger.info("learning_rate: ", self.config["model"]["learning_rate"])
-        logger.info("lambda_loss: ", self.config["model"]["lambda_loss"])
+        logger.info(f"Learning rate: {self.config['model']['learning_rate']}")
+        logger.info(f"Lambda loss: {self.config['model']['lambda_loss']}")
         logger.info(
-            "detection_threshold: ", self.config["model"]["detection_threshold"]
+            f"Detection threshold: {self.config['model']['detection_threshold']}",
         )
-        logger.info("batch_size: ", self.config["model"]["batch_size"])
-
-        logger.info("=" * 10, " descriptor: ", self.desc_loss_type, "=" * 10)
+        logger.info(f"Batch size: {self.config['model']['batch_size']}")
+        logger.info(f"Descriptor: {self.desc_loss_type}")
         for item in list(self.desc_params):
-            logger.info(item, ": ", self.desc_params[item])
-
-        logger.info("=" * 32)
+            logger.info(f"{item} : {self.desc_params[item]}")
         pass
 
     def dataParallel(self):
@@ -175,7 +170,7 @@ class TrainModelFrontend(object):
         """
         model = self.config["model"]["name"]
         params = self.config["model"]["params"]
-        logger.info("Model: ", model)
+        logger.info(f"Model: {model}")
         net = modelLoader(model=model, **params).to(self.device)
         logger.info("=> setting adam solver")
         optimizer = self.adamOptim(net, lr=self.config["model"]["learning_rate"])
@@ -718,8 +713,7 @@ class TrainModelFrontend(object):
         :return:
         """
         for element in list(losses):
-            # print ('add to tb: ', element)
-            print(task, "-", element, ": ", losses[element].item())
+            logger.info(f"{task} - {element}: {losses[element].item()}")
 
     def add2tensorboard_nms(self, img, labels_2D, semi, task="training", batch_size=1):
         """

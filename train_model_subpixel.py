@@ -1,26 +1,13 @@
 """script for subpixel experiment (not tested)
 """
 
-import numpy as np
 import torch
-from torch.autograd import Variable
-import torch.backends.cudnn as cudnn
 import torch.optim
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.utils.data
-from tqdm import tqdm
 from utils.loader import DataLoader, modelLoader, pretrainedLoader
 import logging
-
+from loguru import logger
 from utils.tools import dict_update
-
-from utils.utils import labels2Dto3D, flattenDetection, labels2Dto3D_flattened
-
-from utils.utils import pltImshow, saveImg
-from utils.utils import precisionRecall_torch
-from utils.utils import save_checkpoint
-
 from pathlib import Path
 from train_model_frontend import TrainModelFrontend
 
@@ -35,7 +22,7 @@ class Train_model_subpixel(TrainModelFrontend):
     }
 
     def __init__(self, config, save_path=Path("."), device="cpu", verbose=False):
-        print("using: Train_model_subpixel")
+        logger.info("Using: Train_model_subpixel")
         self.config = self.default_config
         self.config = dict_update(self.config, config)
         self.device = device
@@ -54,7 +41,7 @@ class Train_model_subpixel(TrainModelFrontend):
         ###### check!
         model = self.config["model"]["name"]
         params = self.config["model"]["params"]
-        print("model: ", model)
+        logger.info(f"Model: {model}")
         net = modelLoader(model=model, **params).to(self.device)
         # net.init_
         logging.info("=> setting adam solver")
@@ -187,7 +174,7 @@ class Train_model_subpixel(TrainModelFrontend):
         self.tb_scalar_dict(losses, task)
         if n_iter % tb_interval == 0 or task == "val":
             logging.info(
-                "current iteration: %d, tensorboard_interval: %d", n_iter, tb_interval
+                f"current iteration: {n_iter}, tensorboard_interval: {tb_interval}"
             )
             self.tb_images_dict(task, tb_imgs, max_img=5)
             self.tb_hist_dict(task, tb_hist)
