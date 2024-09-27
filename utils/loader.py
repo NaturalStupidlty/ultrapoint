@@ -3,8 +3,9 @@
 """
 
 import os
+import re
 import logging
-
+import importlib
 import numpy as np
 import torch
 import torch.optim
@@ -55,7 +56,7 @@ def DataLoader(config, dataset='syn', warp_input=False, train=True, val=True):
             transforms.ToTensor(),
         ]),
     }
-    Dataset = get_module('datasets', dataset)
+    Dataset = get_module(dataset, 'datasets')
     logger.info(f"Dataset: {dataset}")
 
     train_set = Dataset(
@@ -125,7 +126,7 @@ def dataLoader_test(config, dataset='syn', warp_input=False, export_task='train'
     else:
         # from datasets.Kitti import Kitti
         logging.info(f"load dataset from : {dataset}")
-        Dataset = get_module('datasets', dataset)
+        Dataset = get_module(dataset, 'datasets')
         test_set = Dataset(
             export=True,
             task=export_task,
@@ -140,17 +141,23 @@ def dataLoader_test(config, dataset='syn', warp_input=False, export_task='train'
         )
     return {'test_set': test_set, 'test_loader': test_loader}
 
-def get_module(path, name):
-    import importlib
-    if path == '':
-        mod = importlib.import_module(name)
-    else:
-        mod = importlib.import_module('{}.{}'.format(path, name))
-    return getattr(mod, name)
+
+def camel_to_snake(name: str) -> str:
+    # Add underscores between words and convert to lowercase
+    snake_case = re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+    return snake_case
+
+
+def get_module(name, path: str = ""):
+    path = camel_to_snake(name) if not path else f"{path}.{camel_to_snake(name)}"
+    module = importlib.import_module(path)
+    return getattr(module, name)
+
 
 def get_model(name):
     mod = __import__('models.{}'.format(name), fromlist=[''])
     return getattr(mod, name)
+
 
 def modelLoader(model='SuperPointNet', **options):
     # create model

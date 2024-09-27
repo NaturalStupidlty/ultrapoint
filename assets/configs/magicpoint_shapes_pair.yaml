@@ -1,7 +1,7 @@
 data:
 #    name: 'synthetic_shapes'
-    dataset: 'SyntheticDataset_gaussian'
-    primitives: 'all'
+    dataset: 'SyntheticDatasetGaussian'
+    primitives: 'draw_lines'
     truncate: {draw_ellipses: 0.3, draw_stripes: 0.2, gaussian_noise: 0.1}
     cache_in_memory: true
     suffix: 'v6'
@@ -62,7 +62,7 @@ data:
             allow_artifacts: true # true
         valid_border_margin: 3
 
-front_end_model: 'Train_model_heatmap'  # 'Train_model_frontend'
+front_end_model: 'TrainModelHeatmap'
 
 model:
     name: 'SuperPointNet_gauss2'

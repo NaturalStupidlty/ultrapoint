@@ -22,10 +22,10 @@ from utils.utils import precisionRecall_torch
 from utils.utils import save_checkpoint
 
 from pathlib import Path
-from Train_model_frontend import Train_model_frontend
+from train_model_frontend import TrainModelFrontend
 
 
-class Train_model_subpixel(Train_model_frontend):
+class Train_model_subpixel(TrainModelFrontend):
 
     default_config = {
         "train_iter": 170000,

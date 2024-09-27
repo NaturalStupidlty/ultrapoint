@@ -1,16 +1,9 @@
-"""This is the frontend interface for training
-base class: inherited by other Train_model_*.py
-
-Author: You-Yi Jau, Rui Zhu
-Date: 2019/12/12
-"""
-
-import numpy as np
 import torch
-
 import torch.optim
 import torch.nn as nn
 import torch.utils.data
+import numpy as np
+
 from tqdm import tqdm
 from pathlib import Path
 from loguru import logger
@@ -48,7 +41,7 @@ def img_overlap(img_r, img_g, img_gray):  # img_b repeat
     return img
 
 
-class Train_model_frontend(object):
+class TrainModelFrontend(object):
     """
     # This is the base class for training classes. Wrap pytorch net to help training process.
 
@@ -77,7 +70,7 @@ class Train_model_frontend(object):
         :param verbose:
         """
         # config
-        logger.info("Loaded TrainModelFrontend!!")
+        logger.info("Loaded TrainModelFrontend")
         self.config = self.default_config
         self.config = dict_update(self.config, config)
 
@@ -261,7 +254,7 @@ class Train_model_frontend(object):
         epoch = 0
         # Train one epoch
         while self.n_iter < self.max_iter:
-            logger.info("Epoch: ", epoch)
+            logger.info(f"Epoch: {epoch}")
             epoch += 1
             for i, sample_train in tqdm(enumerate(self.train_loader)):
                 # train one sample
@@ -286,7 +279,6 @@ class Train_model_frontend(object):
                     # end training
                     logger.info("End training: {self.n_iter}")
                     break
-
         pass
 
     def getLabels(self, labels_2D, cell_size, device="cpu"):

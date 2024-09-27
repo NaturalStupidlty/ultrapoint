@@ -81,10 +81,10 @@ class Val_model_heatmap(SuperPointFrontend_torch):
             images: tensor[batch(1), 1, H, W]
 
         """
-        from Train_model_heatmap import Train_model_heatmap
+        from train_model_heatmap import TrainModelHeatmap
         from utils.var_dim import toNumpy
 
-        train_agent = Train_model_heatmap
+        train_agent = TrainModelHeatmap
 
         with torch.no_grad():
             outs = self.net(images)

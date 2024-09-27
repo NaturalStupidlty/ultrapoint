@@ -3,9 +3,11 @@ import yaml
 
 def load_config(config_path: str):
     with open(config_path, "r") as f:
-        yaml_contents = yaml.safe_load(f)
+        config = yaml.safe_load(f)
 
-    return yaml_contents
+    assert "train_iter" in config
+
+    return config
 
 
 def save_config(config_path: str, config: dict):

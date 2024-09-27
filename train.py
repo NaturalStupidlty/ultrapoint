@@ -11,12 +11,10 @@ from utils.config_helpers import load_config, save_config
 
 
 def train(config: dict, output_directory: str):
-    assert "train_iter" in config
-
     device = determine_device()
     logger.info(f"Training with device: {device}")
 
-    save_config(os.path.join(output_directory, "config.yml"), config)
+    save_config(os.path.join(output_directory, "config.yaml"), config)
 
     data = DataLoader(config, dataset=config["data"]["dataset"], warp_input=True)
     train_loader, val_loader = data["train_loader"], data["val_loader"]
@@ -24,7 +22,7 @@ def train(config: dict, output_directory: str):
     log_data_size(val_loader, config, tag="val")
 
     # init the training agent using config file
-    train_model_frontend = get_module("", config["front_end_model"])
+    train_model_frontend = get_module(config["front_end_model"])
     train_agent = train_model_frontend(
         config, save_path=get_checkpoints_path(output_directory), device=device
     )
@@ -43,7 +41,7 @@ def train(config: dict, output_directory: str):
     try:
         train_agent.train()
     except KeyboardInterrupt:
-        print("KeyboardInterrupt, saving model...")
+        logger.info("KeyboardInterrupt, saving model...")
         train_agent.saveModel()
         pass
 

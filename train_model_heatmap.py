@@ -16,7 +16,7 @@ from loguru import logger
 from utils.tools import dict_update
 from utils.utils import precisionRecall_torch
 from pathlib import Path
-from Train_model_frontend import Train_model_frontend
+from train_model_frontend import TrainModelFrontend
 
 
 def thd_img(img, thd=0.015):
@@ -38,7 +38,7 @@ def img_overlap(img_r, img_g, img_gray):  # img_b repeat
     return img
 
 
-class Train_model_heatmap(Train_model_frontend):
+class TrainModelHeatmap(TrainModelFrontend):
     """Wrapper around pytorch net to help with pre and post image processing."""
 
     """
@@ -58,13 +58,10 @@ class Train_model_heatmap(Train_model_frontend):
     }
 
     def __init__(self, config, save_path=Path("."), device="cpu", verbose=False):
-        # config
-        # Update config
-        print("Load Train_model_heatmap!!")
-
         self.config = self.default_config
         self.config = dict_update(self.config, config)
-        print("check config!!", self.config)
+        logger.info("Loaded TrainModeHeatmap")
+        logger.info("Config", self.config)
 
         # init parameters
         self.device = device
@@ -81,14 +78,14 @@ class Train_model_heatmap(Train_model_frontend):
             self.gaussian = True
 
         if self.config["model"]["dense_loss"]["enable"]:
-            print("use dense_loss!")
+            logger.info("Using dense loss!")
             from utils.utils import descriptor_loss
 
             self.desc_params = self.config["model"]["dense_loss"]["params"]
             self.descriptor_loss = descriptor_loss
             self.desc_loss_type = "dense"
         elif self.config["model"]["sparse_loss"]["enable"]:
-            print("use sparse_loss!")
+            logger.info("Using sparse loss!")
             self.desc_params = self.config["model"]["sparse_loss"]["params"]
             from utils.loss_functions.sparse_loss import batch_descriptor_loss_sparse
 
@@ -99,45 +96,6 @@ class Train_model_heatmap(Train_model_frontend):
         # self.net = self.loadModel(*config['model'])
         self.logImportantConfig()
         pass
-
-    ### loadModel inherited from Train_model_frontend
-    # def loadModel(self):
-    #     """
-    #     load model from name and params
-    #     init or load optimizer
-    #     :return:
-    #     """
-    #     model = self.config["model"]["name"]
-    #     params = self.config["model"]["params"]
-    #     print("model: ", model)
-    #     net = modelLoader(model=model, **params).to(self.device)
-    #     logging.info("=> setting adam solver")
-    #     optimizer = self.adamOptim(net, lr=self.config["model"]["learning_rate"])
-    #
-    #     n_iter = 0
-    #     ## new model or load pretrained
-    #     if self.config["retrain"] == True:
-    #         logging.info("New model")
-    #         pass
-    #     else:
-    #         path = self.config["pretrained"]
-    #         mode = "" if path[:-3] == ".pth" else "full"
-    #         logging.info("load pretrained model from: %s", path)
-    #         net, optimizer, n_iter = pretrainedLoader(
-    #             net, optimizer, n_iter, path, mode=mode, full_path=True
-    #         )
-    #         logging.info("successfully load pretrained model from: %s", path)
-    #
-    #     def setIter(n_iter):
-    #         if self.config["reset_iter"]:
-    #             logging.info("reset iterations to 0")
-    #             n_iter = 0
-    #         return n_iter
-    #
-    #     self.net = net
-    #     self.optimizer = optimizer
-    #     self.n_iter = setIter(n_iter)
-    #     pass
 
     def detector_loss(self, input, target, mask=None, loss_type="softmax"):
         """
@@ -682,10 +640,10 @@ if __name__ == "__main__":
     # test_set, test_loader = data['test_set'], data['test_loader']
     train_loader, val_loader = data["train_loader"], data["val_loader"]
 
-    model_fe = Train_model_frontend(config)
+    model_fe = TrainModelFrontend(config)
     # print('==> Successfully loaded pre-trained network.')
 
-    train_agent = Train_model_heatmap(config, device=device)
+    train_agent = TrainModelHeatmap(config, device=device)
 
     train_agent.train_loader = train_loader
     # train_agent.val_loader = val_loader

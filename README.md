@@ -26,7 +26,7 @@ This repo is a bi-product of our paper [deepFEPE(IROS 2020)](https://github.com/
 
 ## Installation
 ### Requirements
-- python == 3.6
+- python == 3.8
 - pytorch >= 1.1 (tested in 1.3.1)
 - torchvision >= 0.3.0 (tested in 0.4.2)
 - cuda (tested in cuda10)
@@ -86,20 +86,10 @@ datasets/ ($DATA_DIR)
     - [download link](http://www.cvlibs.net/download.php?file=raw_data_downloader.zip)
 
 
-
-## run the code
-- Notes:
-    - Start from any steps (1-4) by downloading some intermediate results
-    - Training usually takes 8-10 hours on one 'NVIDIA 2080Ti'.
-    - Currently Support training on 'COCO' dataset (original paper), 'KITTI' dataset.
-- Tensorboard:
-    - log files is saved under 'runs/<\export_task>/...'
-    
-`tensorboard --logdir=./runs/ [--host | static_ip_address] [--port | 6008]`
-
 ### 1) Training MagicPoint on Synthetic Shapes
 ```
-python train4.py train configs/magicpoint_shapes_pair.yaml magicpoint_synth --eval
+python train.py train configs/magicpoint_shapes_pair.yaml magicpoint_synth --eval
+tensorboard --logdir assets/logs/magicpoint_synth_2024-09-27_10:44:24
 ```
 you don't need to download synthetic data. You will generate it when first running it.
 Synthetic data is exported in `./datasets`. You can change the setting in `settings.py`.

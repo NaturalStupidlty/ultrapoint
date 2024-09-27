@@ -31,7 +31,7 @@ def load_as_float(path):
     return imread(path).astype(np.float32) / 255
 
 
-class SyntheticDataset_gaussian(data.Dataset):
+class SyntheticDatasetGaussian(data.Dataset):
     default_config = {
         "primitives": "all",
         "truncate": {},
@@ -92,7 +92,7 @@ class SyntheticDataset_gaussian(data.Dataset):
             "draw_cube",
             "gaussian_noise",
         ]
-    logger.debug(drawing_primitives)
+    logger.info(drawing_primitives)
 
     def dump_primitive_data(self, primitive, tar_path, config):
         temp_dir = Path(TMPDIR, primitive)
