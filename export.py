@@ -16,7 +16,9 @@ import torch.utils.data
 from utils.utils import inv_warp_image_batch
 from utils.utils import prepare_experiment_directory
 from utils.logging import create_logger, logger, log_data_size
+from utils.loader import dataLoader_test as dataLoader
 from utils.utils import saveImg
+from utils.loader import get_module
 from utils.draw import draw_keypoints
 from utils.config_helpers import load_config, save_config
 from utils.torch_helpers import make_deterministic, set_precision, determine_device
@@ -25,19 +27,19 @@ from utils.loader import get_checkpoints_path
 from utils.var_dim import squeezeToNumpy
 
 
-def combine_heatmap(heatmap, inv_homographies, mask_2D, device="cpu"):
-    heatmap = heatmap * mask_2D
+def combine_heatmap(heatmap, inv_homographies, mask_2d, device="cpu"):
+    heatmap = heatmap * mask_2d
     heatmap = inv_warp_image_batch(
         heatmap, inv_homographies[0, :, :, :], device=device, mode="bilinear"
     )
 
-    ##### check
-    mask_2D = inv_warp_image_batch(
-        mask_2D, inv_homographies[0, :, :, :], device=device, mode="bilinear"
+    mask_2d = inv_warp_image_batch(
+        mask_2d, inv_homographies[0, :, :, :], device=device, mode="bilinear"
     )
     heatmap = torch.sum(heatmap, dim=0)
-    mask_2D = torch.sum(mask_2D, dim=0)
-    return heatmap / mask_2D
+    mask_2d = torch.sum(mask_2d, dim=0)
+
+    return heatmap / mask_2d
 
 
 def export_descriptor(config, output_directory, args):
@@ -57,8 +59,8 @@ def export_descriptor(config, output_directory, args):
     device = determine_device()
     logger.info(f"Training with device: {device}")
     save_config(os.path.join(output_directory, "config.yaml"), config)
-    save_path = get_checkpoints_path(output_directory)
-    save_output = save_path / "../predictions"
+
+    save_output = os.path.join(get_checkpoints_path(output_directory), "predictions")
     os.makedirs(save_output, exist_ok=True)
 
     ## parameters
@@ -67,20 +69,12 @@ def export_descriptor(config, output_directory, args):
     patch_size = config["model"]["subpixel"]["patch_size"]
 
     # data loading
-    from utils.loader import dataLoader_test as dataLoader
-
-    task = config["data"]["dataset"]
-    data = dataLoader(config, dataset=task)
+    data = dataLoader(config, dataset=config["data"]["dataset"])
     test_set, test_loader = data["test_set"], data["test_loader"]
-    from utils.logging import log_data_size
-
     log_data_size(test_loader, config, tag="test")
 
     # model loading
-    from utils.loader import get_module
-
     Val_model_heatmap = get_module(config["front_end_model"])
-    ## load pretrained
     val_agent = Val_model_heatmap(config["model"], device=device)
     val_agent.loadModel()
 
@@ -90,8 +84,6 @@ def export_descriptor(config, output_directory, args):
     ## tracker
     tracker = PointTracker(max_length=2, nn_thresh=val_agent.nn_thresh)
 
-    ###### check!!!
-    count = 0
     for i, sample in tqdm(enumerate(test_loader)):
         img_0, img_1 = sample["image"], sample["warped_image"]
 
@@ -154,15 +146,13 @@ def export_descriptor(config, output_directory, args):
             pred.update({"matches": matches.transpose()})
         print("pts: ", pts.shape, ", desc: ", desc.shape)
 
-        # clean last descriptor
         tracker.clear_desc()
 
-        filename = str(count)
-        path = Path(save_output, "{}.npz".format(filename))
+        path = os.path.join(save_output, f"{i}.npz")
         np.savez_compressed(path, **pred)
-        # print("save: ", path)
-        count += 1
-    print("output pairs: ", count)
+        logger.debug(f"save: {path}")
+
+    logger.info("output pairs: {len(test_loader)}")
 
 
 @torch.no_grad()
