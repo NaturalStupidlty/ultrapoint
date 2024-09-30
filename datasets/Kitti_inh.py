@@ -16,7 +16,7 @@ import random
 from utils.tools import dict_update
 import cv2
 import logging
-from datasets.Coco import Coco
+from datasets.coco import Coco
 
 
 class Kitti_inh(Coco):

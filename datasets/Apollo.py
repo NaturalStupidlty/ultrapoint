@@ -3,7 +3,7 @@ from pathlib import Path
 import random
 
 from utils.tools import dict_update
-from datasets.Coco import Coco
+from datasets.coco import Coco
 from tqdm import tqdm
 from loguru import logger
 

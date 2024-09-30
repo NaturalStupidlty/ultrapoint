@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
     task = config["data"]["dataset"]
     # data loading
-    from utils.loader import dataLoader_test as dataLoader
+    from utils.loader import DataLoaderTest as dataLoader
 
     data = dataLoader(config, dataset="hpatches")
     test_set, test_loader = data["test_set"], data["test_loader"]

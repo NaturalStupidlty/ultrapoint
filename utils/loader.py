@@ -41,7 +41,7 @@ def worker_init_fn(worker_id):
    np.random.seed(base_seed + worker_id)
 
 
-def DataLoader(config, dataset='syn', warp_input=False, train=True, val=True):
+def DataLoader(config, dataset='syn'):
     import torchvision.transforms as transforms
     training_params = config.get('training', {})
     workers_train = training_params.get('workers_train', 1) # 16
@@ -86,7 +86,7 @@ def DataLoader(config, dataset='syn', warp_input=False, train=True, val=True):
             'train_set': train_set, 'val_set': val_set}
 
 
-def dataLoader_test(config, dataset='syn', warp_input=False, export_task='train'):
+def DataLoaderTest(config, dataset='syn', warp_input=False, export_task='train'):
     import torchvision.transforms as transforms
     training_params = config.get('training', {})
     workers_test = training_params.get('workers_test', 1) # 16

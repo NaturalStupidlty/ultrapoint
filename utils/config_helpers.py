@@ -5,8 +5,6 @@ def load_config(config_path: str):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
-    assert "train_iter" in config
-
     return config
 
 

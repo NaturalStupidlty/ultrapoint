@@ -24,7 +24,7 @@ from utils.utils import homography_scaling_torch as homography_scaling
 from utils.utils import filter_points
 
 # from Kitti import Kitti
-from datasets.Coco import Coco
+from datasets.coco import Coco
 import logging
 from tqdm import tqdm
 import glob

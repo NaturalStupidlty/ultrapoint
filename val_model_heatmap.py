@@ -1,12 +1,7 @@
-"""This is the main validation interface using heatmap trick
-
-Author: You-Yi Jau, Rui Zhu
-Date: 2019/12/12
-"""
-
 import torch
 import torch.optim
 import torch.utils.data
+
 from tqdm import tqdm
 from loguru import logger
 from utils.utils import flattenDetection
@@ -24,8 +19,6 @@ class Val_model_heatmap(SuperPointFrontend_torch):
 
         ## other parameters
 
-        # self.name = 'SuperPoint'
-        # self.cuda = cuda
         self.nms_dist = self.config["nms"]
         self.conf_thresh = self.config["detection_threshold"]
         self.nn_thresh = self.config[
@@ -73,7 +66,6 @@ class Val_model_heatmap(SuperPointFrontend_torch):
             label_idx.to(self.device), img.to(self.device), patch_size=patch_size
         )
         return patches
-        pass
 
     def run(self, images):
         """
@@ -97,47 +89,14 @@ class Val_model_heatmap(SuperPointFrontend_torch):
         elif channel == 65:
             heatmap = flattenDetection(semi, tensor=True)
 
-        heatmap_np = toNumpy(heatmap)
-        self.heatmap = heatmap_np
-        return self.heatmap
-        pass
+        return toNumpy(heatmap)
 
-    def heatmap_to_pts(self):
-        heatmap_np = self.heatmap
-
+    def heatmap_to_pts(self, heatmap_np):
         pts_nms_batch = [self.getPtsFromHeatmap(h) for h in heatmap_np]  # [batch, H, W]
         self.pts_nms_batch = pts_nms_batch
         return pts_nms_batch
 
-    # def soft_argmax_points(self):
-    #     """
-    #     # make sure you have points ahead
-    #     inputs:
-
-    #     """
-    #     # from utils.losses import extract_patches
-    #     from utils.losses import extract_patch_from_points
-
-    #     ##### check not take care of batch #####
-    #     print("not take care of batch! only take first element!")
-    #     pts = self.pts_nms_batch
-    #     pts = pts[0].transpose().copy()
-    #     patches = extract_patch_from_points(self.heatmap, pts, patch_size=5)
-    #     import torch
-    #     patches = np.stack(patches)
-    #     patches_torch = torch.tensor(patches, dtype=torch.float32).unsqueeze(0)
-    #     print("patches: ", patches_torch.shape)
-    #     print("pts: ", pts.shape)
-
-    #     dxdy = soft_argmax_2d(patches_torch)
-    #     print("dxdy: ", dxdy.shape)
-    #     points = pts
-    #     points[:,:2] += dxdy.numpy().squeeze()
-    #     self.pts_subpixel = [points.transpose().copy()]
-    #     return self.pts_subpixel.copy()
-    #     pass
-
-    def desc_to_sparseDesc(self):
+    def sparsify_descriptors(self):
         # pts_nms_batch = [self.getPtsFromHeatmap(h) for h in heatmap_np]
         desc_sparse_batch = [
             self.sample_desc_from_points(self.outs["desc"], pts)
@@ -148,7 +107,6 @@ class Val_model_heatmap(SuperPointFrontend_torch):
 
 
 if __name__ == "__main__":
-    # filename = 'configs/magicpoint_shapes_subpix.yaml'
     filename = "assets/configs/magicpoint_repeatability_heatmap.yaml"
     import yaml
 
@@ -160,7 +118,7 @@ if __name__ == "__main__":
 
     task = config["data"]["dataset"]
     # data loading
-    from utils.loader import dataLoader_test as dataLoader
+    from utils.loader import DataLoaderTest as dataLoader
 
     data = dataLoader(config, dataset="hpatches")
     test_set, test_loader = data["test_set"], data["test_loader"]
@@ -189,7 +147,7 @@ if __name__ == "__main__":
         print("subpixels: ", pts_subpixel[0][:, :3])
 
         # heatmap, pts to desc
-        desc_sparse = val_agent.desc_to_sparseDesc()
+        desc_sparse = val_agent.sparsify_descriptors()
         print("desc_sparse[0]: ", desc_sparse[0].shape)
 
 # pts, desc, _, heatmap

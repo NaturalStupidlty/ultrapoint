@@ -8,29 +8,12 @@ Please be generous to star this repo if it helps your research.
 This repo is a bi-product of our paper [deepFEPE(IROS 2020)](https://github.com/eric-yyjau/pytorch-deepFEPE.git).
 
 ## Differences between our implementation and original paper
-- *Descriptor loss*: We tested descriptor loss using different methods, including dense method (as paper but slightly different) and sparse method. We notice sparse loss can converge more efficiently with similar performance. The default setting here is sparse method.
-
-## Results on HPatches
-| Task                                      | Homography estimation |      |      | Detector metric |      | Descriptor metric |                |
-|-------------------------------------------|-----------------------|------|------|-----------------|------|-------------------|----------------|
-|                                           | Epsilon = 1           | 3    | 5    | Repeatability   | MLE  | NN mAP            | Matching Score |
-| Pretrained model                        | 0.44                  | 0.77 | 0.83 | 0.606           | 1.14 | 0.81              | 0.55           |
-| Sift (subpixel accuracy)                  | 0.63                  | 0.76 | 0.79 | 0.51            | 1.16 | 0.70               | 0.27            |
-| superpoint_coco_heat2_0_170k_hpatches_sub | 0.46                  | 0.75 | 0.81 | 0.63            | 1.07 | 0.78              | 0.42           |
-| superpoint_kitti_heat2_0_50k_hpatches_sub | 0.44                  | 0.71 | 0.77 | 0.56            | 0.95 | 0.78              | 0.41           |
-
-- Pretrained model is from [SuperPointPretrainedNetwork](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork).
-- The evaluation is done under our evaluation scripts.
-- COCO/ KITTI pretrained model is included in this repo.
+- *Descriptor loss*: We tested descriptor loss using different methods, including dense method 
+(as paper but slightly different) and sparse method. We notice sparse loss can converge more efficiently with similar
+performance. The default setting here is sparse method.
 
 
 ## Installation
-### Requirements
-- python == 3.8
-- pytorch >= 1.1 (tested in 1.3.1)
-- torchvision >= 0.3.0 (tested in 0.4.2)
-- cuda (tested in cuda10)
-
 ```
 conda create --name superpoint python=3.8
 conda activate superpoint
@@ -38,10 +21,11 @@ pip install -r requirements.txt
 ```
 
 ### Path setting
-- paths for datasets ($DATA_DIR), logs are set in `setting.py`
+- paths for datasets ($DATA_DIR), logs are set in `.env`
 
 ### Dataset
-Datasets should be downloaded into $DATA_DIR. The Synthetic Shapes dataset will also be generated there. The folder structure should look like:
+Datasets should be downloaded into $DATA_DIR. The Synthetic Shapes dataset will also be generated there. 
+The folder structure should look like:
 
 ```
 datasets/ ($DATA_DIR)
@@ -88,40 +72,25 @@ datasets/ ($DATA_DIR)
 
 ### 1) Training MagicPoint on Synthetic Shapes
 ```
-python train.py train configs/magicpoint_shapes_pair.yaml magicpoint_synth --eval
+python train.py assets/configs/train/magicpoint_synthetic.yaml magicpoint_synth --eval
 tensorboard --logdir assets/logs/magicpoint_synth_2024-09-27_10:44:24
 ```
 you don't need to download synthetic data. You will generate it when first running it.
-Synthetic data is exported in `./datasets`. You can change the setting in `settings.py`.
+Synthetic data is exported in `./datasets`. You can change the setting in `.env`.
 
 ### 2) Exporting detections on MS-COCO / kitti
-This is the step of homography adaptation(HA) to export pseudo ground truth for joint training.
+This is the step of homography adaptation to export pseudo ground truth for joint training.
 - make sure the pretrained model in config file is correct
-- make sure COCO dataset is in '$DATA_DIR' (defined in setting.py)
-<!-- - you can export hpatches or coco dataset by editing the 'task' in config file -->
-- config file:
+- make sure COCO dataset is in '$DATA_DIR' (defined in .env)
+- you can export hpatches or coco dataset by editing the 'task' in config file
+
+#### export coco
 ```
-export_folder: <'train' | 'val'>  # set export for training or validation
-```
-#### General command:
-```
-python export.py <export task>  <config file>  <export folder> [--outputImg | output images for visualization (space inefficient)]
-```
-#### export coco - do on training set 
-```
-python export.py export_detector_homoAdapt configs/magicpoint_coco_export.yaml magicpoint_synth_homoAdapt_coco
-```
-#### export coco - do on validation set 
-- Edit 'export_folder' to 'val' in 'magicpoint_coco_export.yaml'
-```
-python export.py export_detector_homoAdapt configs/magicpoint_coco_export.yaml magicpoint_synth_homoAdapt_coco
+python export.py assets/configs/generate_pseudo_labels/magicpoint_coco_export.yaml magicpoint_coco_homography
 ```
 #### export kitti
-- config
-  - check the 'root' in config file 
-  - train/ val split_files are included in `datasets/kitti_split/`.
 ```
-python export.py export_detector_homoAdapt configs/magicpoint_kitti_export.yaml magicpoint_base_homoAdapt_kitti
+python export.py assets/configs/generate_pseudo_labels/magicpoint_kitti_export.yaml magicpoint_kitti_homography
 ```
 <!-- #### export tum
 - config
@@ -133,7 +102,7 @@ python export.py export_detector_homoAdapt configs/magicpoint_tum_export.yaml ma
 
 
 ### 3) Training Superpoint on MS-COCO/ KITTI
-You need pseudo ground truth labels to traing detectors. Labels can be exported from step 2) or downloaded from [link](https://drive.google.com/drive/folders/1nnn0UbNMFF45nov90PJNnubDyinm2f26?usp=sharing). Then, as usual, you need to set config file before training.
+You need pseudo ground truth labels from step 2). Then, as usual, you need to set config file before training.
 - config file
   - root: specify your labels root
   - root_split_txt: where you put the train.txt/ val.txt split files (no need for COCO, needed for KITTI)
@@ -186,7 +155,6 @@ python export_classical.py export_descriptor configs/classical_descriptors.yaml 
 python evaluation.py logs/sift_test/predictions --sift --repeatibility --homography 
 ```
 
-
 - specify the pretrained model
 
 ## Pretrained models
@@ -204,49 +172,3 @@ python evaluation.py logs/sift_test/predictions --sift --repeatibility --homogra
 jupyter notebook
 notebooks/visualize_hpatches.ipynb 
 ```
-
-## Updates (year.month.day)
-- 2020.08.05: 
-  - Update pytorch nms from (https://github.com/eric-yyjau/pytorch-superpoint/pull/19)
-  - Update and test KITTI dataloader and labels on google drive (should be able to fit the KITTI raw format)
-  - Update and test SIFT evaluate at step 5.
-
-## Known problems
-- ~~test step 5: evaluate on SIFT~~
-- Export COCO dataset in low resolution (240x320) instead of high resolution (480x640).
-- Due to step 1 was done long time ago. We are still testing it again along with step 2-4. Please refer to our pretrained model or exported labels. Or let us know how the whole pipeline works.
-- Warnings from tensorboard.
-
-## Work in progress
-- Release notebooks with unit testing.
-- Dataset: ApolloScape/ TUM.
-
-## Citations
-Please cite the original paper.
-```
-@inproceedings{detone2018superpoint,
-  title={Superpoint: Self-supervised interest point detection and description},
-  author={DeTone, Daniel and Malisiewicz, Tomasz and Rabinovich, Andrew},
-  booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition Workshops},
-  pages={224--236},
-  year={2018}
-}
-```
-
-Please also cite our DeepFEPE paper.
-```
-@misc{2020_jau_zhu_deepFEPE,
-Author = {You-Yi Jau and Rui Zhu and Hao Su and Manmohan Chandraker},
-Title = {Deep Keypoint-Based Camera Pose Estimation with Geometric Constraints},
-Year = {2020},
-Eprint = {arXiv:2007.15122},
-}
-```
-
-# Credits
-This implementation is developed by [You-Yi Jau](https://github.com/eric-yyjau) and [Rui Zhu](https://github.com/Jerrypiglet). Please contact You-Yi for any problems. 
-Again the work is based on Tensorflow implementation by [Rémi Pautrat](https://github.com/rpautrat) and [Paul-Edouard Sarlin](https://github.com/Skydes) and official [SuperPointPretrainedNetwork](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork).
-Thanks to Daniel DeTone for help during the implementation.
-
-## Posts
-[What have I learned from the implementation of deep learning paper?](https://medium.com/@eric.yyjau/what-have-i-learned-from-the-implementation-of-deep-learning-paper-365ee3253a89)
