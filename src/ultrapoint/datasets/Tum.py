@@ -7,73 +7,16 @@ Date: 2019/12/12
 
 import numpy as np
 
-# from pathlib import Path
 from pathlib import Path
 import random
 
 
 from src.ultrapoint.utils.tools import dict_update
 
-# from Kitti import Kitti
 from src.ultrapoint.datasets.coco import Coco
 import logging
 from tqdm import tqdm
 import glob
-
-# class Tum(Kitti):
-#     def __init__(self, export=False, transform=None, task='train', seed=0, sequence_length=1, **config):
-#         super(Tum, self).__init__()
-
-#     def crawl_folders(self, sequence_length):
-#         sequence_set = []
-#         # demi_length = (sequence_length-1)//2
-#         demi_length = sequence_length-1
-#         # shifts = list(range(-demi_length, demi_length + 1))
-#         # shifts.pop(demi_length)
-#         for scene in self.scenes:
-#             intrinsics = np.genfromtxt(scene/'cam.txt').astype(np.float32).reshape((3, 3))
-#             imu_pose_matrixs = np.genfromtxt(scene/'imu_pose_matrixs.txt').astype(np.float64).reshape(-1, 4, 4)
-#             # imgs = sorted(scene.files('*.jpg'))
-
-#             ##### test
-#             image_paths = list(scene.iterdir())
-#             names = [p.stem for p in image_paths]
-#             image_paths = [str(p) for p in image_paths]
-#             files = {'image_paths': image_paths, 'names': names}
-#             #####
-
-#             imgs = sorted(scene.glob('*.jpg'))
-#             names = [p.stem for p in imgs]
-
-#             # X_files = sorted(scene.glob('*.npy'))
-#             if len(imgs) < sequence_length:
-#                 continue
-#             # for i in range(demi_length, len(imgs)-demi_length):
-#             for i in range(0, len(imgs)-demi_length):
-#                 sample = None
-#                 # sample = {'intrinsics': intrinsics, 'imu_pose_matrixs': [imu_pose_matrixs[i]], 'imgs': [imgs[i]], 'Xs': [load_as_array(X_files[i])], 'scene_name': scene.name, 'frame_ids': [i]}
-#                 if self.labels:
-#                     p = Path(EXPER_PATH, self.labels_path, scene.name, '{}.npz'.format(names[i]))
-#                     if p.exists():
-#                         sample = {'intrinsics': intrinsics, 'imu_pose_matrixs': [imu_pose_matrixs[i]],
-#                                   'imgs': [imgs[i]], 'scene_name': scene.name, 'frame_ids': [i]}
-#                         sample.update({'name': [names[i]], 'points': [str(p)]})
-#                 else:
-#                     sample = {'intrinsics': intrinsics, 'imu_pose_matrixs': [imu_pose_matrixs[i]], 'imgs': [imgs[i]],
-#                               'scene_name': scene.name, 'frame_ids': [i], 'name': [names[i]]}
-
-#                 if sample is not None:
-#                     # for j in shifts:
-#                     for j in range(1, demi_length+1):
-#                         sample['imgs'].append(imgs[i+j])
-#                         sample['imu_pose_matrixs'].append(imu_pose_matrixs[i+j])
-#                         # sample['Xs'].append(load_as_array(X_files[i])) # [3, N]
-#                         sample['frame_ids'].append(i+j)
-#                     sequence_set.append(sample)
-#                 # print(sample)
-#         random.shuffle(sequence_set)
-#         self.samples = sequence_set
-#         logging.info('Finished crawl_folders for KITTI.')
 
 
 class Tum(Coco):
@@ -228,8 +171,3 @@ class Tum(Coco):
             sample_fix["scene_name"] = str(sample["scene_name"])
 
         return sample_fix
-
-
-if __name__ == "__main__":
-    # main()
-    pass

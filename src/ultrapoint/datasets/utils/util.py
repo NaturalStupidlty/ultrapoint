@@ -1,8 +1,7 @@
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-from mpl_toolkits.mplot3d import Axes3D
+
 from matplotlib.patches import ConnectionPatch
 
 
@@ -167,24 +166,3 @@ def build_pose(R, t):
         return np.array(l)
     else:
         raise ValueError("translation vector has a shape that is more than 2 dimensions.")
-        
-# def eval(gt_dir, pred_dir):
-#     pred_files = glob.glob(pred_dir + '/*.txt')
-#     ate_all = []
-#     for i in range(len(pred_files)):
-#         gtruth_file = os.path.join(gt_dir, os.path.basename(pred_files[i]))
-
-#         if not os.path.exists(gtruth_file):
-#             print("Ground truth file not found!")
-#             print('\t> ground truth file: ' + gtruth_file)
-#             print('\t> pred file: ' + pred_files[i])
-#             continue
-
-#         ate = compute_ate(gtruth_file, pred_files[i])
-#         if ate == False:
-#             continue
-#         ate_all.append(ate)
-
-#     ate_all = np.array(ate_all)
-# #     print("Predictions dir: %s" % pred_dir)
-#     print("ATE mean: %.4f, std: %.4f" % (np.mean(ate_all), np.std(ate_all)))

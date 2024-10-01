@@ -7,7 +7,6 @@ Date: 2019/12/12
 
 import numpy as np
 
-# from pathlib import Path
 from pathlib import Path
 import random
 
@@ -17,8 +16,6 @@ from src.ultrapoint.datasets.coco import Coco
 
 
 class Kitti_inh(Coco):
-
-    ## copy the same thing from Coco
     default_config = {
         "labels": None,
         "cache_in_memory": False,

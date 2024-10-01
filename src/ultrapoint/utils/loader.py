@@ -105,19 +105,6 @@ def DataLoaderTest(config, dataset='syn', warp_input=False, export_task='train')
             seed=1,
             **config['data'],
         )
-    elif dataset == 'hpatches':
-        from src.ultrapoint.datasets.patches_dataset import PatchesDataset
-
-        test_set = PatchesDataset(
-            transform=data_transforms['test'],
-            **config['data'],
-        )
-        test_loader = torch.utils.data.DataLoader(
-            test_set, batch_size=1, shuffle=False,
-            pin_memory=True,
-            num_workers=workers_test,
-            worker_init_fn=worker_init_fn
-        )
     elif dataset == 'Coco' or 'Kitti' or 'Tum':
         logging.info(f"load dataset from : {dataset}")
         Dataset = get_module(dataset, 'ultrapoint.datasets')
