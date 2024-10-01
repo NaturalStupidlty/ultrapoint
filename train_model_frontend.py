@@ -141,7 +141,7 @@ class TrainModelFrontend(object):
         put network and optimizer to multiple gpus
         :return:
         """
-        logger.info("=== Let's use", torch.cuda.device_count(), "GPUs!")
+        logger.info(f"Using {torch.cuda.device_count()} GPUs")
         self.net = nn.DataParallel(self.net)
         self.optimizer = self.adamOptim(
             self.net, lr=self.config["model"]["learning_rate"]

@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.optim
 import torch.utils.data
+import torchvision.transforms as transforms
 
 from loguru import logger
 from utils.utils import load_checkpoint
@@ -28,26 +29,24 @@ def get_checkpoints_path(output_dir):
 
 
 def worker_init_fn(worker_id):
-   """The function is designed for pytorch multi-process dataloader.
-   Note that we use the pytorch random generator to generate a base_seed.
-   Please try to be consistent.
+    """The function is designed for pytorch multi-process dataloader.
+    Note that we use the pytorch random generator to generate a base_seed.
+    Please try to be consistent.
 
-   References:
+    References:
        https://pytorch.org/docs/stable/notes/faq.html#dataloader-workers-random-seed
 
-   """
-   base_seed = torch.IntTensor(1).random_().item()
-   # print(worker_id, base_seed)
-   np.random.seed(base_seed + worker_id)
+    """
+    base_seed = torch.IntTensor(1).random_().item()
+    np.random.seed(base_seed + worker_id)
 
 
-def DataLoader(config, dataset='syn'):
-    import torchvision.transforms as transforms
-    training_params = config.get('training', {})
-    workers_train = training_params.get('workers_train', 1) # 16
-    workers_val   = training_params.get('workers_val', 1) # 16
-        
-    logging.info(f"workers_train: {workers_train}, workers_val: {workers_val}")
+def DataLoader(config, dataset):
+    workers_train = config["data"].get('workers_train', 1)
+    workers_val = config["data"].get('workers_val', 1)
+
+    logging.info(f"Workers_train: {workers_train}, workers_val: {workers_val}")
+
     data_transforms = {
         'train': transforms.Compose([
             transforms.ToTensor(),
@@ -56,10 +55,10 @@ def DataLoader(config, dataset='syn'):
             transforms.ToTensor(),
         ]),
     }
-    Dataset = get_module(dataset, 'datasets')
+    dataset = get_module(dataset, 'datasets')
     logger.info(f"Dataset: {dataset}")
 
-    train_set = Dataset(
+    train_set = dataset(
         transform=data_transforms['train'],
         task='train',
         **config['data'],
@@ -70,9 +69,9 @@ def DataLoader(config, dataset='syn'):
         num_workers=workers_train,
         worker_init_fn=worker_init_fn
     )
-    val_set = Dataset(
+    val_set = dataset(
         transform=data_transforms['train'],
-        task = 'val',
+        task='val',
         **config['data'],
     )
     val_loader = torch.utils.data.DataLoader(
@@ -87,10 +86,8 @@ def DataLoader(config, dataset='syn'):
 
 
 def DataLoaderTest(config, dataset='syn', warp_input=False, export_task='train'):
-    import torchvision.transforms as transforms
-    training_params = config.get('training', {})
-    workers_test = training_params.get('workers_test', 1) # 16
-    logging.info(f"workers_test: {workers_test}")
+    workers_test = config["data"].get('workers', 1)
+    logging.info(f"Using {workers_test} workers")
 
     data_transforms = {
         'test': transforms.Compose([
@@ -179,14 +176,14 @@ def pretrainedLoader(net, optimizer, epoch, path, mode='full', full_path=False):
     if mode == 'full':
         net.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-#         epoch = checkpoint['epoch']
+        #         epoch = checkpoint['epoch']
         epoch = checkpoint['n_iter']
-#         epoch = 0
+    #         epoch = 0
     else:
         net.load_state_dict(checkpoint)
         # net.load_state_dict(torch.load(path,map_location=lambda storage, loc: storage))
     return net, optimizer, epoch
 
+
 if __name__ == '__main__':
     net = modelLoader(model='SuperPointNet')
-

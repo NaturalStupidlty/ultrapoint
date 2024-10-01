@@ -61,6 +61,9 @@ data:
             allow_artifacts: true # true
         valid_border_margin: 3
 
+    train_workers: 16
+    val_workers: 16
+
 front_end_model: 'TrainModelHeatmap'
 
 model:

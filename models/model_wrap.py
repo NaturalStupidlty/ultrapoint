@@ -5,13 +5,11 @@
 
 import numpy as np
 import torch
-from torch.autograd import Variable
-import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.utils.data
-from tqdm import tqdm
+
+from loguru import logger
 
 
 def labels2Dto3D(cell_size, labels):
@@ -82,35 +80,21 @@ class SuperPointFrontend_torch(object):
             self.loadModel(weights_path)
 
     def loadModel(self, weights_path):
-        # Load the network in inference mode.
         if weights_path[-4:] == ".tar":
             trained = True
-        # if cuda:
-        #     # Train on GPU, deploy on GPU.
-        #     self.net.load_state_dict(torch.load(weights_path))
 
-        # else:
-        # Train on GPU, deploy on CPU.
-
-        # trained = False
         if trained:
-            # if self.subpixel:
-            #     model = 'SubpixelNet'
-            #     params = self.config['model']['subpixel']['params']
-            # else:
-            #     model = 'SuperPointNet'
-            #     params = {}
             model = self.config["model"]["name"]
             params = self.config["model"]["params"]
-            print("model: ", model)
+            logger.info(f"Using {model} model")
 
             from utils.loader import modelLoader
 
             self.net = modelLoader(model=model, **params)
-            # from models.SuperPointNet import SuperPointNet
-            # self.net = SuperPointNet()
             checkpoint = torch.load(
-                weights_path, map_location=lambda storage, loc: storage
+                weights_path,
+                map_location=lambda storage, loc: storage,
+                weights_only=False,
             )
             self.net.load_state_dict(checkpoint["model_state_dict"])
         else:
@@ -118,16 +102,19 @@ class SuperPointFrontend_torch(object):
 
             self.net = SuperPointNet()
             self.net.load_state_dict(
-                torch.load(weights_path, map_location=lambda storage, loc: storage)
+                torch.load(
+                    weights_path,
+                    map_location=lambda storage, loc: storage,
+                    weights_only=False,
+                )
             )
-        # if grad==False:
-        # torch.no_grad(
-        # self.net = self.net.cuda()
+
         self.net = self.net.to(self.device)
-        # self.net.eval()
+        self.net_parallel()
+        self.net.eval()
 
     def net_parallel(self):
-        print("=== Let's use", torch.cuda.device_count(), "GPUs!")
+        logger.info(f"Using {torch.cuda.device_count()} GPUs")
         self.net = nn.DataParallel(self.net)
 
     def nms_fast(self, in_corners, H, W, dist_thresh):
