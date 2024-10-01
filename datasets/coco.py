@@ -1,4 +1,3 @@
-import os
 import numpy as np
 
 import torch
@@ -39,8 +38,6 @@ class Coco(data.Dataset):
     }
 
     def __init__(self, export=False, transform=None, task="train", **config):
-
-        # Update config
         self.config = self.default_config
         self.config = dict_update(self.config, config)
 
@@ -48,9 +45,8 @@ class Coco(data.Dataset):
         self.action = "train" if task == "train" else "val"
 
         # get files
-        base_path = Path(os.getenv("DATA_PATH"), "COCO/" + task + "2014/")
-        # base_path = Path(DATA_PATH, 'COCO_small/' + task + '2014/')
-        image_paths = list(base_path.iterdir())
+        base_path = config["data_path"]
+        image_paths = list(Path(base_path).rglob("*.jpg"))
         # if config['truncate']:
         #     image_paths = image_paths[:config['truncate']]
         names = [p.stem for p in image_paths]
@@ -451,11 +447,8 @@ class Coco(data.Dataset):
                 input["labels_2D_gaussian"] = labels_gaussian
 
         name = sample["name"]
-        to_numpy = False
-        if to_numpy:
-            image = np.array(img)
-
         input.update({"name": name, "scene_name": "./"})  # dummy scene name
+
         return input
 
     def __len__(self):

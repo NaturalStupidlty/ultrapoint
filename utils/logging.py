@@ -23,7 +23,7 @@ def log_data_size(train_loader: DataLoader, config: dict, tag: str = "train") ->
 def log_dict_attr(dictionary, attr=None):
     for item in list(dictionary):
         d = dictionary[item]
-        if attr == None:
+        if attr is None:
             logger.info(f"{item}: {d}")
         else:
             if hasattr(d, attr):

@@ -11,7 +11,6 @@ from tqdm import tqdm
 from pathlib import Path
 
 from utils.utils import inv_warp_image_batch
-from utils.utils import prepare_experiment_directory
 from utils.logging import create_logger, logger
 from utils.loader import DataLoaderTest
 from utils.utils import saveImg
@@ -37,18 +36,17 @@ def combine_heatmap(heatmap, inv_homographies, mask_2d, device):
 
 
 @torch.no_grad()
-def export_detector_homo_adapt_gpu(
-    config, output_directory, output_images: bool = True
-):
+def export_detector_homo_adapt_gpu(config, output_images: bool = True):
     """
     input 1 images, output pseudo ground truth by homography adaptation.
     Save labels:
         pred:
             'prob' (keypoints): np (N1, 3)
     """
-    # basic setting
     device = determine_device()
     logger.info(f"Training with device: {device}")
+    output_directory = os.path.join(config["data"]["data_path"], "labels")
+    os.makedirs(output_directory, exist_ok=True)
     save_config(os.path.join(output_directory, "config.yaml"), config)
 
     # parameters
@@ -57,13 +55,8 @@ def export_detector_homo_adapt_gpu(
     conf_thresh = config["model"]["detection_threshold"]
     iterations = config["data"]["homography_adaptation"]["num"]
 
-    # save data
-    save_path = Path(output_directory)
-    save_output = save_path / "predictions"
-    save_path = save_path / "checkpoints"
-    logger.info(f"=> will save everything to {save_path}")
-    os.makedirs(save_path, exist_ok=True)
-    os.makedirs(save_output, exist_ok=True)
+    logger.info(f"=> will save everything to {output_directory}")
+    os.makedirs(output_directory, exist_ok=True)
 
     # data loading
     data = DataLoaderTest(config, dataset=config["data"]["dataset"])
@@ -109,12 +102,11 @@ def export_detector_homo_adapt_gpu(
             homographies.to(device),
             inv_homographies.to(device),
         )
-        name = sample["name"][0]
-        logger.info(f"name: {name}")
 
-        p = os.path.join(save_output, "{name}.npz")
+        filename = str(sample["name"][0])
+        p = os.path.join(output_directory, f"{sample['name'][0]}.npz")
         if os.path.exists(p):
-            logger.info(f"File {name} exists. Skipping.")
+            logger.info(f"File {filename} exists. Skipping.")
             continue
 
         # pass through network
@@ -143,19 +135,17 @@ def export_detector_homo_adapt_gpu(
         pred = {}
         pred.update({"pts": pts})
 
-        # - make directories
-        filename = str(name)
+        # make directories
         if config["data"]["dataset"] == "Kitti" or "Kitti_inh":
             scene_name = sample["scene_name"][0]
-            os.makedirs(Path(save_output, scene_name), exist_ok=True)
+            os.makedirs(Path(output_directory, scene_name), exist_ok=True)
 
-        np.savez_compressed(os.path.join(save_output, f"{filename}.npz"), **pred)
+        np.savez_compressed(os.path.join(output_directory, f"{filename}.npz"), **pred)
 
         # output images for visualization labels
         if output_images:
             img_pts = draw_keypoints(img_2d * 255, pts.transpose())
-            f = save_output / (name + ".png")
-            saveImg(img_pts, str(f))
+            saveImg(img_pts, os.path.join(output_directory, f"{filename}.png"))
 
     logger.info(f"Output pairs: {len(test_loader)}\n")
 
@@ -163,7 +153,6 @@ def export_detector_homo_adapt_gpu(
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=str)
-    parser.add_argument("exper_name", type=str)
     parser.add_argument("--eval", action="store_true")
     parser.add_argument(
         "--debug", action="store_true", default=False, help="turn on debuging mode"
@@ -179,11 +168,8 @@ def main():
     config = load_config(args.config)
     set_precision(config["precision"])
     make_deterministic(config["seed"])
-    output_directory = prepare_experiment_directory(
-        os.getenv("EXPER_PATH"), args.exper_name
-    )
-    create_logger(**config["logging"], logs_dir=output_directory)
-    args.func(config, output_directory)
+    create_logger(**config["logging"])
+    args.func(config)
 
 
 if __name__ == "__main__":

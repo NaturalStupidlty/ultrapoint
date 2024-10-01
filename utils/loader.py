@@ -81,7 +81,7 @@ def DataLoader(config, dataset='syn'):
         num_workers=workers_val,
         worker_init_fn=worker_init_fn
     )
-    # val_set, val_loader = None, None
+
     return {'train_loader': train_loader, 'val_loader': val_loader,
             'train_set': train_set, 'val_set': val_set}
 
@@ -110,8 +110,7 @@ def DataLoaderTest(config, dataset='syn', warp_input=False, export_task='train')
         )
     elif dataset == 'hpatches':
         from datasets.patches_dataset import PatchesDataset
-        if config['data']['preprocessing']['resize']:
-            size = config['data']['preprocessing']['resize']
+
         test_set = PatchesDataset(
             transform=data_transforms['test'],
             **config['data'],
@@ -122,9 +121,7 @@ def DataLoaderTest(config, dataset='syn', warp_input=False, export_task='train')
             num_workers=workers_test,
             worker_init_fn=worker_init_fn
         )
-    # elif dataset == 'Coco' or 'Kitti' or 'Tum':
-    else:
-        # from datasets.Kitti import Kitti
+    elif dataset == 'Coco' or 'Kitti' or 'Tum':
         logging.info(f"load dataset from : {dataset}")
         Dataset = get_module(dataset, 'datasets')
         test_set = Dataset(
@@ -139,6 +136,9 @@ def DataLoaderTest(config, dataset='syn', warp_input=False, export_task='train')
             worker_init_fn=worker_init_fn
 
         )
+    else:
+        raise NotImplementedError
+
     return {'test_set': test_set, 'test_loader': test_loader}
 
 

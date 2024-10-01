@@ -78,28 +78,20 @@ tensorboard --logdir assets/logs/magicpoint_synth_2024-09-27_10:44:24
 you don't need to download synthetic data. You will generate it when first running it.
 Synthetic data is exported in `./datasets`. You can change the setting in `.env`.
 
-### 2) Exporting detections on MS-COCO / kitti
-This is the step of homography adaptation to export pseudo ground truth for joint training.
+### 2) Generating pseudo labels on MS-COCO / kitti
+This is the step of homography adaptation for joint training.
 - make sure the pretrained model in config file is correct
 - make sure COCO dataset is in '$DATA_DIR' (defined in .env)
 - you can export hpatches or coco dataset by editing the 'task' in config file
 
-#### export coco
+#### COCO
 ```
-python export.py assets/configs/generate_pseudo_labels/magicpoint_coco_export.yaml magicpoint_coco_homography
+python generate_pseudo_labels.py assets/configs/generate_pseudo_labels/magicpoint_coco_export.yaml
 ```
-#### export kitti
+#### KITTI
 ```
-python export.py assets/configs/generate_pseudo_labels/magicpoint_kitti_export.yaml magicpoint_kitti_homography
+python generate_pseudo_labels.py assets/configs/generate_pseudo_labels/magicpoint_kitti_export.yaml
 ```
-<!-- #### export tum
-- config
-  - check the 'root' in config file
-  - set 'datasets/tum_split/train.txt' as the sequences you have
-```
-python export.py export_detector_homoAdapt configs/magicpoint_tum_export.yaml magicpoint_base_homoAdapt_tum
-``` -->
-
 
 ### 3) Training Superpoint on MS-COCO/ KITTI
 You need pseudo ground truth labels from step 2). Then, as usual, you need to set config file before training.
