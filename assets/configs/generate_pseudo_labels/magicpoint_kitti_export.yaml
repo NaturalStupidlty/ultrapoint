@@ -42,7 +42,7 @@ model:
     subpixel:
         enable: false
 
-pretrained: 'logs/magicpoint_synth_t2/checkpoints/superPointNet_100000_checkpoint.pth.tar'
+pretrained: '../assets/logs/magicpoint_synth_t2/checkpoints/superPointNet_100000_checkpoint.pth.tar'
 skip_existing: false
 
 seed: 0

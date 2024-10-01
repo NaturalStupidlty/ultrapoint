@@ -1,6 +1,6 @@
 data:
     dataset: 'Coco'
-    data_path: 'assets/datasets/coco/train2014'
+    data_path: '../assets/datasets/coco/train2014'
     export_folder: 'train' # train, val
     preprocessing:
         resize: [240, 320] 
@@ -42,7 +42,7 @@ model:
     subpixel:
         enable: true
 
-pretrained: 'assets/logs/magicpoint_synth_2024-09-27_18:25:15/checkpoints/superPointNet_200000_checkpoint.pth.tar'
+pretrained: '../assets/logs/magicpoint_synth_2024-09-27_18:25:15/checkpoints/superPointNet_200000_checkpoint.pth.tar'
 skip_existing: false
 
 seed: 0
