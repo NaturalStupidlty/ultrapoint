@@ -54,7 +54,7 @@ def norm_patches(patches):
     # print("patches: ", patches.shape)
     return patches
 
-# from utils.losses import extract_patch_from_points
+
 def extract_patch_from_points(heatmap, points, patch_size=5):
     """
     this function works in numpy
@@ -71,7 +71,7 @@ def extract_patch_from_points(heatmap, points, patch_size=5):
     # crop it
     patches = []
     ext = lambda img, pnt, wid: img[pnt[1]:pnt[1]+wid, pnt[0]:pnt[0]+wid]
-    print("heatmap: ", heatmap.shape)
+
     for i in range(points.shape[0]):
         # print("point: ", points[i,:])
         patch = ext(heatmap, points[i,:].astype(int), patch_size)
@@ -82,7 +82,7 @@ def extract_patch_from_points(heatmap, points, patch_size=5):
     # extract points
     return patches
 
-# from utils.losses import extract_patches
+
 def extract_patches(label_idx, image, patch_size=7):
     """
     return:
