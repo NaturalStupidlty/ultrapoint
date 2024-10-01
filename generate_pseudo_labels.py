@@ -71,7 +71,7 @@ def homography_adaptation(config, output_images: bool = True):
 
     logger.info(f"Homography adaptation iterations: {iterations}")
 
-    for sample in tqdm(test_loader):
+    for sample in tqdm(test_loader, desc="Generating pseudo labels"):
         img = sample["image"].transpose(0, 1).to(device)
         mask_2d = sample["valid_mask"].transpose(0, 1).to(device)
         homographies = sample["homographies"].to(device)
