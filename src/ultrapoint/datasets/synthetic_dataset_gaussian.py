@@ -226,8 +226,8 @@ class SyntheticDatasetGaussian(data.Dataset):
                 self.dump_primitive_data(primitive, tar_path, self.config)
 
             # Untar locally
-            logger.info("Extracting archive for primitive {}.".format(primitive))
-            logger.info(f"tar_path: {tar_path}")
+            logger.debug(f"Extracting archive for primitive {primitive}")
+            logger.debug(f"tar_path: {tar_path}")
             tar = tarfile.open(tar_path)
             # temp_dir = Path(os.environ['TMPDIR'])
             temp_dir = Path(TMPDIR)

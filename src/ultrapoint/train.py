@@ -5,12 +5,13 @@ import dotenv
 from tensorboardX import SummaryWriter
 
 from ultrapoint.utils.config_helpers import load_config, save_config
-from ultrapoint.utils.loader import DataLoader, get_checkpoints_path, get_module
+from ultrapoint.utils.loader import DataLoadersFabric, get_checkpoints_path, get_module
 from ultrapoint.utils.logging import create_logger, logger, log_data_size
 from ultrapoint.utils.torch_helpers import (
     make_deterministic,
     set_precision,
     determine_device,
+    clear_memory,
 )
 from ultrapoint.utils.utils import prepare_experiment_directory
 
@@ -21,8 +22,12 @@ def train(config: dict, output_directory: str):
 
     save_config(os.path.join(output_directory, "config.yaml"), config)
 
-    data = DataLoader(config, dataset=config["data"]["dataset"])
-    train_loader, val_loader = data["train_loader"], data["val_loader"]
+    train_loader = DataLoadersFabric.create(
+        config, dataset=config["data"]["dataset"], mode="train"
+    )
+    val_loader = DataLoadersFabric.create(
+        config, dataset=config["data"]["dataset"], mode="test"
+    )
     log_data_size(train_loader, config, tag="train")
     log_data_size(val_loader, config, tag="val")
 
@@ -42,6 +47,9 @@ def train(config: dict, output_directory: str):
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt, saving model...")
         train_agent.saveModel()
+    finally:
+        train_agent.writer.close()
+        clear_memory()
 
 
 def parse_arguments():
@@ -61,6 +69,7 @@ def main():
     dotenv.load_dotenv()
     args = parse_arguments()
     config = load_config(args.config)
+    clear_memory()
     set_precision(config["precision"])
     make_deterministic(config["seed"])
     output_directory = prepare_experiment_directory(

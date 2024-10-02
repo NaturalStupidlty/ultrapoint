@@ -4,7 +4,7 @@
 import torch
 import torch.optim
 import torch.utils.data
-from src.ultrapoint.utils.loader import DataLoader, modelLoader, pretrainedLoader
+from src.ultrapoint.utils.loader import DataLoadersFabric, modelLoader, pretrainedLoader
 import logging
 from loguru import logger
 from src.ultrapoint.utils.config_helpers import dict_update
@@ -213,10 +213,12 @@ if __name__ == "__main__":
     # data = dataLoader(config, dataset='hpatches')
     task = config["data"]["dataset"]
 
-    data = DataLoader(config, dataset=task, warp_input=True)
-    # test_set, test_loader = data['test_set'], data['test_loader']
-    train_loader, val_loader = data["train_loader"], data["val_loader"]
-
+    train_loader = DataLoadersFabric.create(
+        config, dataset=config["data"]["dataset"], mode="train"
+    )
+    val_loader = DataLoadersFabric.create(
+        config, dataset=config["data"]["dataset"], mode="test"
+    )
     train_agent = Train_model_subpixel(config, device=device)
     train_agent.print()
     # writer from tensorboard

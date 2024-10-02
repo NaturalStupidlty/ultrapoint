@@ -62,7 +62,7 @@ data:
         valid_border_margin: 3
 
     train_workers: 16
-    val_workers: 16
+    test_workers: 16
 
 front_end_model: 'TrainModelHeatmap'
 

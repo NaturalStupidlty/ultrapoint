@@ -10,12 +10,13 @@ from tqdm import tqdm
 from ultrapoint.models.model_wrap import SuperPointFrontend_torch
 from ultrapoint.utils.config_helpers import load_config, save_config
 from ultrapoint.utils.draw import draw_keypoints
-from ultrapoint.utils.loader import DataLoaderTest
+from ultrapoint.utils.loader import DataLoadersFabric
 from ultrapoint.utils.logging import create_logger, logger
 from ultrapoint.utils.torch_helpers import (
     make_deterministic,
     set_precision,
     determine_device,
+    clear_memory,
 )
 from ultrapoint.utils.utils import inv_warp_image_batch, saveImg
 
@@ -52,8 +53,9 @@ def homography_adaptation(config):
     conf_thresh = config["model"]["detection_threshold"]
     iterations = config["data"]["homography_adaptation"]["num"]
 
-    data = DataLoaderTest(config, dataset=config["data"]["dataset"])
-    test_loader = data["test_loader"]
+    test_loader = DataLoadersFabric.create(
+        config, dataset=config["data"]["dataset"], mode="test"
+    )
 
     path = config["pretrained"]
     try:
@@ -75,40 +77,43 @@ def homography_adaptation(config):
     logger.info(f"Homography adaptation iterations: {iterations}")
 
     for sample in tqdm(test_loader, desc="Generating pseudo labels"):
-        filename = str(sample["name"][0])
-        if config["skip_existing"] and os.path.exists(
-            os.path.join(output_directory, f"{filename}.npz")
-        ):
-            logger.info(f"File {filename} exists. Skipping.")
-            continue
+        try:
+            filename = str(sample["name"][0])
+            if config["skip_existing"] and os.path.exists(
+                os.path.join(output_directory, f"{filename}.npz")
+            ):
+                logger.info(f"File {filename} exists. Skipping.")
+                continue
 
-        heatmap = superpoint_wrapper.run(
-            sample["image"].transpose(0, 1), onlyHeatmap=True, train=False
-        )
-        outputs = combine_heatmap(
-            heatmap,
-            sample["homographies"].to(device),
-            sample["valid_mask"].transpose(0, 1).to(device),
-            device,
-        )
-        points = superpoint_wrapper.getPtsFromHeatmap(outputs.detach().cpu().squeeze())
+            heatmap = superpoint_wrapper.run(
+                sample["image"].transpose(0, 1), onlyHeatmap=True, train=False
+            )
+            outputs = combine_heatmap(
+                heatmap,
+                sample["homographies"].to(device),
+                sample["valid_mask"].transpose(0, 1).to(device),
+                device,
+            )
+            points = superpoint_wrapper.getPtsFromHeatmap(outputs.detach().cpu().squeeze())
 
-        if config["model"]["subpixel"]["enable"] and points.shape[1]:
-            superpoint_wrapper.heatmap = outputs
-            points = superpoint_wrapper.soft_argmax_points([points])[0]
+            if config["model"]["subpixel"]["enable"] and points.shape[1]:
+                superpoint_wrapper.heatmap = outputs
+                points = superpoint_wrapper.soft_argmax_points([points])[0]
 
-        if config["data"]["dataset"] in ["Kitti", "Kitti_inh"]:
+            if config["data"]["dataset"] in ["Kitti", "Kitti_inh"]:
 
-            os.makedirs(Path(output_directory, sample["scene_name"][0]), exist_ok=True)
+                os.makedirs(Path(output_directory, sample["scene_name"][0]), exist_ok=True)
 
-        np.savez_compressed(
-            os.path.join(output_directory, f"{filename}.npz"),
-            pts=points.transpose()[:top_k, :],
-        )
+            np.savez_compressed(
+                os.path.join(output_directory, f"{filename}.npz"),
+                pts=points.transpose()[:top_k, :],
+            )
 
-        if config["save_images"]:
-            img_pts = draw_keypoints(sample["image_2D"].numpy().squeeze() * 255, points)
-            saveImg(img_pts, os.path.join(output_directory, f"{filename}.png"))
+            if config["save_images"]:
+                img_pts = draw_keypoints(sample["image_2D"].numpy().squeeze() * 255, points)
+                saveImg(img_pts, os.path.join(output_directory, f"{filename}.png"))
+        except KeyboardInterrupt:
+            clear_memory()
 
     logger.info(f"Processed {len(test_loader)} samples.")
 
@@ -127,6 +132,7 @@ def main():
     dotenv.load_dotenv()
     args = parse_arguments()
     config = load_config(args.config)
+    clear_memory()
     set_precision(config["precision"])
     make_deterministic(config["seed"])
     create_logger(**config["logging"])

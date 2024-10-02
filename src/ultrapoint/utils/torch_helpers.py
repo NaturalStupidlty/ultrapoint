@@ -1,6 +1,9 @@
 import torch
 import random
 import numpy
+import gc
+
+from loguru import logger
 
 
 def make_deterministic(seed: int = 0):
@@ -40,6 +43,16 @@ def set_precision(precision: str):
         raise ValueError("The precision must be 'highest', 'high' or 'medium'.")
 
     torch.set_float32_matmul_precision(precision)
+
+
+def clear_memory():
+    """
+    Clear the memory of the GPU.
+    """
+    logger.info("Clearing memory...")
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 def determine_device() -> torch.device:

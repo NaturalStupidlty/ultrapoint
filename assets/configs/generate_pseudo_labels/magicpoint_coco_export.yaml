@@ -1,7 +1,6 @@
 data:
     dataset: 'Coco'
     data_path: '../assets/datasets/coco/train2014'
-    export_folder: 'train' # train, val
     preprocessing:
         resize: [240, 320]
         # resize: [480, 640] 

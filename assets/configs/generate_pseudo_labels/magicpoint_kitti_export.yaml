@@ -1,7 +1,6 @@
 data:
     # name: 'kitti'
     dataset: 'Kitti_inh'  # 'coco' 'hpatches', 'Kitti', ''
-    export_folder: 'train'
     alteration: 'all'  # 'all' 'i' 'v'
     root: 'datasets/kitti_wVal' # root for dataset
     root_split_txt: 'datasets/kitti_split'  # split file provided in datasets/kitti_split

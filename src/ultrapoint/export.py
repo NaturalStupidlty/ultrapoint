@@ -9,13 +9,14 @@ from tensorboardX import SummaryWriter
 
 from src.ultrapoint.utils.utils import prepare_experiment_directory
 from src.ultrapoint.utils.logging import create_logger, logger, log_data_size
-from src.ultrapoint.utils.loader import DataLoaderTest
+from src.ultrapoint.utils.loader import DataLoadersFabric
 from src.ultrapoint.utils.loader import get_module
 from src.ultrapoint.utils.config_helpers import load_config, save_config
 from src.ultrapoint.utils.torch_helpers import (
     make_deterministic,
     set_precision,
     determine_device,
+    clear_memory,
 )
 from src.ultrapoint.utils.loader import get_checkpoints_path
 from src.ultrapoint.utils.torch_helpers import squeeze_to_numpy
@@ -66,9 +67,9 @@ def export_descriptors(config, output_directory):
     )
     os.makedirs(predictions_folder, exist_ok=True)
 
-    # data loading
-    data = DataLoaderTest(config, dataset=config["data"]["dataset"])
-    test_set, test_loader = data["test_set"], data["test_loader"]
+    test_loader = DataLoadersFabric.create(
+        config, dataset=config["data"]["dataset"], mode="test"
+    )
     log_data_size(test_loader, config, tag="test")
 
     # model loading
@@ -131,6 +132,7 @@ def main():
     dotenv.load_dotenv()
     args = parse_arguments()
     config = load_config(args.config)
+    clear_memory()
     set_precision(config["precision"])
     make_deterministic(config["seed"])
     output_directory = prepare_experiment_directory(

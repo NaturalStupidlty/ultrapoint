@@ -4,12 +4,10 @@
 
 import os
 import re
-import logging
 import importlib
 import numpy as np
 import torch
 import torch.optim
-import torch.utils.data
 import torchvision.transforms as transforms
 
 from loguru import logger
@@ -23,9 +21,58 @@ def get_checkpoints_path(output_dir):
     :return:
     """
     save_path = os.path.join(output_dir, 'checkpoints')
-    logging.info('=> will save everything to {}'.format(save_path))
+    logger.info(f"Saving everything to {save_path}")
     os.makedirs(save_path, exist_ok=True)
     return save_path
+
+
+def get_module(name, path: str = "") -> callable:
+    path = camel_to_snake(name) if not path else f"{path}.{camel_to_snake(name)}"
+    module = importlib.import_module(path)
+    return getattr(module, name)
+
+
+class DataLoadersFabric:
+    @staticmethod
+    def create(config: dict, dataset: str, mode: str):
+        assert mode in ['train', 'test'], f"Mode {mode} not supported"
+
+        datasets_sources = "ultrapoint.datasets"
+        dataset_module = get_module(dataset, datasets_sources)
+        workers = config["data"].get(f"{mode}_workers", 1)
+        batch_size = config["model"]["batch_size"] if mode == 'train' else config["model"]["eval_batch_size"]
+
+        logger.info(f"{mode.upper()} Workers: {workers}")
+        logger.info(f"{mode.upper()} Dataset: {dataset_module.__name__}")
+
+        dataset = dataset_module(
+            transform=transforms.Compose([transforms.ToTensor()]),
+            task=mode,
+            **config['data']
+        )
+
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            pin_memory=True,
+            num_workers=workers,
+            worker_init_fn=DataLoadersFabric.initialize_worker,
+        )
+
+    @staticmethod
+    def initialize_worker(worker_id: int):
+        """
+        The function is designed for pytorch multiprocess dataloader.
+        Note that we use the pytorch random generator to generate a base_seed.
+        Please try to be consistent.
+
+        References:
+           https://pytorch.org/docs/stable/notes/faq.html#dataloader-workers-random-seed
+
+        """
+        base_seed = torch.IntTensor(1).random_().item()
+        np.random.seed(base_seed + worker_id)
 
 
 def worker_init_fn(worker_id):
@@ -41,101 +88,10 @@ def worker_init_fn(worker_id):
     np.random.seed(base_seed + worker_id)
 
 
-def DataLoader(config, dataset):
-    workers_train = config["data"].get('workers_train', 1)
-    workers_val = config["data"].get('workers_val', 1)
-
-    logging.info(f"Workers_train: {workers_train}, workers_val: {workers_val}")
-
-    data_transforms = {
-        'train': transforms.Compose([
-            transforms.ToTensor(),
-        ]),
-        'val': transforms.Compose([
-            transforms.ToTensor(),
-        ]),
-    }
-    dataset = get_module(dataset, 'ultrapoint.datasets')
-    logger.info(f"Dataset: {dataset}")
-
-    train_set = dataset(
-        transform=data_transforms['train'],
-        task='train',
-        **config['data'],
-    )
-    train_loader = torch.utils.data.DataLoader(
-        train_set, batch_size=config['model']['batch_size'], shuffle=True,
-        pin_memory=True,
-        num_workers=workers_train,
-        worker_init_fn=worker_init_fn
-    )
-    val_set = dataset(
-        transform=data_transforms['train'],
-        task='val',
-        **config['data'],
-    )
-    val_loader = torch.utils.data.DataLoader(
-        val_set, batch_size=config['model']['eval_batch_size'], shuffle=True,
-        pin_memory=True,
-        num_workers=workers_val,
-        worker_init_fn=worker_init_fn
-    )
-
-    return {'train_loader': train_loader, 'val_loader': val_loader,
-            'train_set': train_set, 'val_set': val_set}
-
-
-def DataLoaderTest(config, dataset='syn', warp_input=False, export_task='train'):
-    workers_test = config["data"].get('workers', 1)
-    logging.info(f"Using {workers_test} workers")
-
-    data_transforms = {
-        'test': transforms.Compose([
-            transforms.ToTensor(),
-        ])
-    }
-    test_loader = None
-    if dataset == 'syn':
-        from src.ultrapoint.datasets import SyntheticDataset
-        test_set = SyntheticDataset(
-            transform=data_transforms['test'],
-            train=False,
-            warp_input=warp_input,
-            getPts=True,
-            seed=1,
-            **config['data'],
-        )
-    elif dataset == 'Coco' or 'Kitti' or 'Tum':
-        logging.info(f"load dataset from : {dataset}")
-        Dataset = get_module(dataset, 'ultrapoint.datasets')
-        test_set = Dataset(
-            export=True,
-            task=export_task,
-            **config['data'],
-        )
-        test_loader = torch.utils.data.DataLoader(
-            test_set, batch_size=1, shuffle=False,
-            pin_memory=True,
-            num_workers=workers_test,
-            worker_init_fn=worker_init_fn
-
-        )
-    else:
-        raise NotImplementedError
-
-    return {'test_set': test_set, 'test_loader': test_loader}
-
-
 def camel_to_snake(name: str) -> str:
     # Add underscores between words and convert to lowercase
     snake_case = re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
     return snake_case
-
-
-def get_module(name, path: str = ""):
-    path = camel_to_snake(name) if not path else f"{path}.{camel_to_snake(name)}"
-    module = importlib.import_module(path)
-    return getattr(module, name)
 
 
 def get_model(name):
@@ -144,8 +100,7 @@ def get_model(name):
 
 
 def modelLoader(model='SuperPointNet', **options):
-    # create model
-    logging.info("=> creating model: %s", model)
+    logger.info(f"Creating model: {model}", )
     net = get_model(model)
     net = net(**options)
     return net
