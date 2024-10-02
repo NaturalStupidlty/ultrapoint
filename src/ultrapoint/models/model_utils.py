@@ -131,9 +131,9 @@ class SuperPointNet_process(object):
           heatmap_nms_batch: np [batch, 1, H, W]
         """
         to_floatTensor = lambda x: torch.from_numpy(x).type(torch.FloatTensor)
-        from src.ultrapoint.utils.var_dim import toNumpy
+        from src.ultrapoint.utils.torch_helpers import to_numpy
 
-        heatmap_np = toNumpy(heatmap)
+        heatmap_np = to_numpy(heatmap)
         ## heatmap_nms
         if boxnms:
             from src.ultrapoint.utils.utils import box_nms

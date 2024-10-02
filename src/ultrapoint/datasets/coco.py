@@ -4,7 +4,7 @@ import torch
 from pathlib import Path
 import torch.utils.data as data
 
-from src.ultrapoint.utils.tools import dict_update
+from src.ultrapoint.utils.config_helpers import dict_update
 import cv2
 
 
@@ -87,10 +87,19 @@ class Coco(data.Dataset):
     def init_var(self):
         torch.set_default_dtype(torch.float32)
 
-        from src.ultrapoint.utils.homographies import sample_homography_np as sample_homography
+        from src.ultrapoint.utils.homographies import (
+            sample_homography_np as sample_homography,
+        )
         from src.ultrapoint.utils.utils import compute_valid_mask
-        from src.ultrapoint.utils.photometric import ImgAugTransform, customizedTransform
-        from src.ultrapoint.utils.utils import inv_warp_image, inv_warp_image_batch, warp_points
+        from src.ultrapoint.utils.photometric import (
+            ImgAugTransform,
+            customizedTransform,
+        )
+        from src.ultrapoint.utils.utils import (
+            inv_warp_image,
+            inv_warp_image_batch,
+            warp_points,
+        )
 
         self.sample_homography = sample_homography
         self.inv_warp_image = inv_warp_image
@@ -405,12 +414,12 @@ class Coco(data.Dataset):
                 if self.gaussian_label:
                     # print("do gaussian labels!")
                     # warped_labels_gaussian = get_labels_gaussian(warped_set['warped_pnts'].numpy())
-                    from src.ultrapoint.utils.var_dim import squeezeToNumpy
+                    from src.ultrapoint.utils.torch_helpers import squeeze_to_numpy
 
                     # warped_labels_bi = self.inv_warp_image(labels_2D.squeeze(), inv_homography, mode='nearest').unsqueeze(0) # bilinear, nearest
                     warped_labels_bi = warped_set["labels_bi"]
                     warped_labels_gaussian = self.gaussian_blur(
-                        squeezeToNumpy(warped_labels_bi)
+                        squeeze_to_numpy(warped_labels_bi)
                     )
                     warped_labels_gaussian = np_to_tensor(warped_labels_gaussian, H, W)
                     input["warped_labels_gaussian"] = warped_labels_gaussian
@@ -441,7 +450,7 @@ class Coco(data.Dataset):
 
             if self.gaussian_label:
                 # warped_labels_gaussian = get_labels_gaussian(pnts)
-                labels_gaussian = self.gaussian_blur(squeezeToNumpy(labels_2D))
+                labels_gaussian = self.gaussian_blur(squeeze_to_numpy(labels_2D))
                 labels_gaussian = np_to_tensor(labels_gaussian, H, W)
                 input["labels_2D_gaussian"] = labels_gaussian
 

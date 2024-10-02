@@ -7,16 +7,17 @@ Date: 2020/03/30
 
 import matplotlib
 
-matplotlib.use("Agg")  # solve error of tk
+matplotlib.use("Agg")
 
 import numpy as np
-from src.ultrapoint.evaluations import compute_homography
-from src.ultrapoint.evaluations import compute_repeatability
+from src.ultrapoint.evaluations.descriptor_evaluation import compute_homography
+from src.ultrapoint.evaluations.detector_evaluation import compute_repeatability
 import cv2
 import matplotlib.pyplot as plt
 
 import os
 from tqdm import tqdm
+from loguru import logger
 from src.ultrapoint.utils.draw import plot_imgs
 
 
@@ -105,7 +106,7 @@ def evaluate(args, **options):
 
     reproduce = True
     if reproduce:
-        logging.info("reproduce = True")
+        logger.info("reproduce = True")
         np.random.seed(0)
         print(f"test random # : np({np.random.rand(1)})")
 
@@ -515,7 +516,7 @@ def evaluate(args, **options):
     }
 
     filename = f"{save_file[:-4]}.npz"
-    logging.info(f"save file: {filename}")
+    logger.info(f"save file: {filename}")
     np.savez(
         filename,
         **dict_of_lists,
@@ -525,11 +526,6 @@ def evaluate(args, **options):
 if __name__ == "__main__":
     import argparse
 
-    logging.basicConfig(
-        format="[%(asctime)s %(levelname)s] %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.INFO,
-    )
     parser = argparse.ArgumentParser()
     parser.add_argument("path", type=str)
     parser.add_argument("--sift", action="store_true", help="use sift matches")

@@ -7,7 +7,7 @@ import torch.utils.data
 from src.ultrapoint.utils.loader import DataLoader, modelLoader, pretrainedLoader
 import logging
 from loguru import logger
-from src.ultrapoint.utils.tools import dict_update
+from src.ultrapoint.utils.config_helpers import dict_update
 from pathlib import Path
 from train_model_frontend import TrainModelFrontend
 

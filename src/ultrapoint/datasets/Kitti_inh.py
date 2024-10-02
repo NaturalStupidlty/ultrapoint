@@ -10,7 +10,7 @@ import numpy as np
 from pathlib import Path
 import random
 
-from src.ultrapoint.utils.tools import dict_update
+from src.ultrapoint.utils.config_helpers import dict_update
 import logging
 from src.ultrapoint.datasets.coco import Coco
 

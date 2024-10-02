@@ -3,7 +3,9 @@ import numpy as np
 import torch
 
 from src.ultrapoint.utils.homographies import scale_homography_torch
-from src.ultrapoint.utils.loss_functions.pixelwise_contrastive_loss import PixelwiseContrastiveLoss
+from src.ultrapoint.utils.loss_functions.pixelwise_contrastive_loss import (
+    PixelwiseContrastiveLoss,
+)
 
 
 def get_coor_cells(Hc, Wc, cell_size, device="cpu", uv=False):

@@ -15,7 +15,7 @@ from pathlib import Path
 import tarfile
 
 import random
-from src.ultrapoint.utils.tools import dict_update
+from src.ultrapoint.utils.config_helpers import dict_update
 from src.ultrapoint.datasets import synthetic_dataset
 from tqdm import tqdm
 import os
@@ -161,8 +161,13 @@ class SyntheticDatasetGaussian(data.Dataset):
         getPts=False,
         **config,
     ):
-        from src.ultrapoint.utils.homographies import sample_homography_np as sample_homography
-        from src.ultrapoint.utils.photometric import ImgAugTransform, customizedTransform
+        from src.ultrapoint.utils.homographies import (
+            sample_homography_np as sample_homography,
+        )
+        from src.ultrapoint.utils.photometric import (
+            ImgAugTransform,
+            customizedTransform,
+        )
         from src.ultrapoint.utils.utils import compute_valid_mask
         from src.ultrapoint.utils.utils import inv_warp_image, warp_points
 
@@ -329,7 +334,7 @@ class SyntheticDatasetGaussian(data.Dataset):
 
         from src.ultrapoint.datasets.data_tools import np_to_tensor
         from src.ultrapoint.utils.utils import filter_points
-        from src.ultrapoint.utils.var_dim import squeezeToNumpy
+        from src.ultrapoint.utils.torch_helpers import squeeze_to_numpy
 
         sample = self.samples[index]
         img = load_as_float(sample["image"])
@@ -389,7 +394,9 @@ class SyntheticDatasetGaussian(data.Dataset):
         else:
             # print('>>> Homograpy aug enabled for %s.'%self.action)
             # img_warp = img
-            from src.ultrapoint.utils.utils import homography_scaling_torch as homography_scaling
+            from src.ultrapoint.utils.utils import (
+                homography_scaling_torch as homography_scaling,
+            )
             from numpy.linalg import inv
 
             homography = self.sample_homography(
@@ -447,7 +454,7 @@ class SyntheticDatasetGaussian(data.Dataset):
 
             labels_2D_bi = get_labels_bi(pnts_post, H, W)
 
-            labels_gaussian = self.gaussian_blur(squeezeToNumpy(labels_2D_bi))
+            labels_gaussian = self.gaussian_blur(squeeze_to_numpy(labels_2D_bi))
             labels_gaussian = np_to_tensor(labels_gaussian, H, W)
             sample["labels_2D_gaussian"] = labels_gaussian
 
@@ -500,7 +507,7 @@ class SyntheticDatasetGaussian(data.Dataset):
                 # warped_labels_bi = self.inv_warp_image(labels_2D.squeeze(), inv_homography, mode='nearest').unsqueeze(0) # bilinear, nearest
                 warped_labels_bi = warped_set["labels_bi"]
                 warped_labels_gaussian = self.gaussian_blur(
-                    squeezeToNumpy(warped_labels_bi)
+                    squeeze_to_numpy(warped_labels_bi)
                 )
                 warped_labels_gaussian = np_to_tensor(warped_labels_gaussian, H, W)
                 sample["warped_labels_gaussian"] = warped_labels_gaussian

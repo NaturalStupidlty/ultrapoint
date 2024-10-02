@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.utils.data
 from loguru import logger
 
-from src.ultrapoint.utils.tools import dict_update
+from src.ultrapoint.utils.config_helpers import dict_update
 from src.ultrapoint.utils.utils import precisionRecall_torch
 from pathlib import Path
 from train_model_frontend import TrainModelFrontend
@@ -364,16 +364,16 @@ class TrainModelHeatmap(TrainModelFrontend):
                 # overlap label, nms, img
                 nms_overlap = [
                     img_overlap(
-                        toNumpy(labels_warp_2D[i]),
+                        to_numpy(labels_warp_2D[i]),
                         heatmap_nms_batch[i],
-                        toNumpy(img_warp[i]),
+                        to_numpy(img_warp[i]),
                     )
                     for i in range(heatmap_nms_batch.shape[0])
                 ]
                 nms_overlap = np.stack(nms_overlap, axis=0)
                 images_dict.update({name + "_nms_overlap": nms_overlap})
 
-            from src.ultrapoint.utils.var_dim import toNumpy
+            from src.ultrapoint.utils.torch_helpers import to_numpy
 
             update_overlap(
                 self.images_dict,
@@ -386,7 +386,7 @@ class TrainModelHeatmap(TrainModelFrontend):
             update_overlap(
                 self.images_dict,
                 labels_2D,
-                toNumpy(heatmap_org),
+                to_numpy(heatmap_org),
                 img,
                 "original_heatmap",
             )
@@ -401,7 +401,7 @@ class TrainModelHeatmap(TrainModelFrontend):
                 update_overlap(
                     self.images_dict,
                     labels_warp_2D,
-                    toNumpy(heatmap_warp),
+                    to_numpy(heatmap_warp),
                     img_warp,
                     "warped_heatmap",
                 )
@@ -475,9 +475,9 @@ class TrainModelHeatmap(TrainModelFrontend):
         return:
             heatmap_nms_batch: np [batch, H, W]
         """
-        from src.ultrapoint.utils.var_dim import toNumpy
+        from src.ultrapoint.utils.torch_helpers import to_numpy
 
-        heatmap_np = toNumpy(heatmap)
+        heatmap_np = to_numpy(heatmap)
         ## heatmap_nms
         heatmap_nms_batch = [self.heatmap_nms(h) for h in heatmap_np]  # [batch, H, W]
         heatmap_nms_batch = np.stack(heatmap_nms_batch, axis=0)

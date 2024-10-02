@@ -9,8 +9,12 @@ from pathlib import Path
 from loguru import logger
 
 from src.ultrapoint.utils.loader import modelLoader, pretrainedLoader
-from src.ultrapoint.utils.tools import dict_update
-from src.ultrapoint.utils.utils import labels2Dto3D, flattenDetection, labels2Dto3D_flattened
+from src.ultrapoint.utils.config_helpers import dict_update
+from src.ultrapoint.utils.utils import (
+    labels2Dto3D,
+    flattenDetection,
+    labels2Dto3D_flattened,
+)
 from src.ultrapoint.utils.utils import saveImg
 from src.ultrapoint.utils.utils import precisionRecall_torch
 from src.ultrapoint.utils.utils import save_checkpoint
@@ -96,7 +100,9 @@ class TrainModelFrontend(object):
             ## our sparse loss has similar performace, more efficient
             logger.info("Using sparse loss")
             self.desc_params = self.config["model"]["sparse_loss"]["params"]
-            from src.ultrapoint.utils.loss_functions.sparse_loss import batch_descriptor_loss_sparse
+            from src.ultrapoint.utils.loss_functions.sparse_loss import (
+                batch_descriptor_loss_sparse,
+            )
 
             self.descriptor_loss = batch_descriptor_loss_sparse
             self.desc_loss_type = "sparse"

@@ -44,3 +44,11 @@ def set_precision(precision: str):
 
 def determine_device() -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def squeeze_to_numpy(tensor_arr):
+    return tensor_arr.detach().cpu().numpy().squeeze()
+
+
+def to_numpy(tensor):
+    return tensor.detach().cpu().numpy()

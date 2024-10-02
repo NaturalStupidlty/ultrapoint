@@ -12,10 +12,14 @@ from src.ultrapoint.utils.logging import create_logger, logger, log_data_size
 from src.ultrapoint.utils.loader import DataLoaderTest
 from src.ultrapoint.utils.loader import get_module
 from src.ultrapoint.utils.config_helpers import load_config, save_config
-from src.ultrapoint.utils.torch_helpers import make_deterministic, set_precision, determine_device
+from src.ultrapoint.utils.torch_helpers import (
+    make_deterministic,
+    set_precision,
+    determine_device,
+)
 from src.ultrapoint.utils.loader import get_checkpoints_path
-from src.ultrapoint.utils.var_dim import squeezeToNumpy
-from src.ultrapoint.models import PointTracker
+from src.ultrapoint.utils.torch_helpers import squeeze_to_numpy
+from src.ultrapoint.models.model_wrap import PointTracker
 
 
 def get_keypoints(model, img, device, subpixel: bool = None, patch_size: int = None):
@@ -93,13 +97,13 @@ def export_descriptors(config, output_directory):
         tracker.clear_desc()
 
         predictions = {
-            "image": squeezeToNumpy(image_0),
+            "image": squeeze_to_numpy(image_0),
             "prob": points0.transpose(),
             "desc": descriptors0.transpose(),
-            "warped_image": squeezeToNumpy(image_1),
+            "warped_image": squeeze_to_numpy(image_1),
             "warped_prob": points1.transpose(),
             "warped_desc": descriptors1.transpose(),
-            "homography": squeezeToNumpy(sample["homography"]),
+            "homography": squeeze_to_numpy(sample["homography"]),
             "matches": matches.transpose(),
         }
 
