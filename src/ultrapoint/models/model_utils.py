@@ -6,10 +6,8 @@ import torch
 import numpy as np
 
 
-class SuperPointNet_process(object):
-
+class SuperPointNet_process:
     def __init__(self, **config):
-        # N=500, patch_size=5, device='cuda:0'
         self.out_num_points = config.get("out_num_points", 500)
         self.patch_size = config.get("patch_size", 5)
         self.device = config.get("device", "cuda:0")

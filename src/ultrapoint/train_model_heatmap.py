@@ -13,7 +13,6 @@ import torch.nn as nn
 import torch.utils.data
 from loguru import logger
 
-from src.ultrapoint.utils.config_helpers import dict_update
 from src.ultrapoint.utils.utils import precisionRecall_torch
 from pathlib import Path
 from train_model_frontend import TrainModelFrontend
@@ -58,8 +57,7 @@ class TrainModelHeatmap(TrainModelFrontend):
     }
 
     def __init__(self, config, save_path=Path("../.."), device="cpu", verbose=False):
-        self.config = self.default_config
-        self.config = dict_update(self.config, config)
+        self.config = {**self.default_config, **config}
         logger.info("Loaded TrainModeHeatmap")
         logger.info(f"Config: {self.config}")
 
@@ -597,7 +595,7 @@ class TrainModelHeatmap(TrainModelFrontend):
         outpus:
             heatmap: tensor[batch, 1, H, W]
         """
-        from src.ultrapoint.utils import DepthToSpace
+        from src.ultrapoint.utils.d2s import DepthToSpace
 
         depth2space = DepthToSpace(cell_size)
         heatmap = depth2space(semi)

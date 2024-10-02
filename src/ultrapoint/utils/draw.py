@@ -1,19 +1,7 @@
 """util functions for visualization
 
 """
-
-import argparse
-import time
-import csv
-import yaml
-import os
-import logging
-from pathlib import Path
-
 import numpy as np
-from tqdm import tqdm
-
-from tensorboardX import SummaryWriter
 import cv2
 import matplotlib.pyplot as plt
 
@@ -77,23 +65,6 @@ def draw_keypoints(img, corners, color=(0, 255, 0), radius=3, s=3):
         cv2.circle(img, tuple((s * c[:2]).astype(int)), radius, color, thickness=-1)
     return img
 
-# def draw_keypoints(img, corners, color=(0, 255, 0), radius=3, s=3):
-#     '''
-
-#     :param img:
-#         np (H, W)
-#     :param corners:
-#         np (3, N)
-#     :param color:
-#     :param radius:
-#     :param s:
-#     :return:
-#     '''
-#     img = np.repeat(cv2.resize(img, None, fx=s, fy=s)[..., np.newaxis], 3, -1)
-#     for c in np.stack(corners).T:
-#         # cv2.circle(img, tuple(s * np.flip(c, 0)), radius, color, thickness=-1)
-#         cv2.circle(img, tuple((s*c[:2]).astype(int)), radius, color, thickness=-1)
-#     return img
 
 def draw_matches(rgb1, rgb2, match_pairs, lw = 0.5, color='g', if_fig=True,
                 filename='matches.png', show=False):
@@ -154,8 +125,6 @@ def draw_matches(rgb1, rgb2, match_pairs, lw = 0.5, color='g', if_fig=True,
         plt.show()
 
 
-
-# from utils.draw import draw_matches_cv
 def draw_matches_cv(data):
     keypoints1 = [cv2.KeyPoint(p[1], p[0], 1) for p in data['keypoints1']]
     keypoints2 = [cv2.KeyPoint(p[1], p[0], 1) for p in data['keypoints2']]

@@ -10,9 +10,6 @@ import numpy as np
 from pathlib import Path
 import random
 
-
-from src.ultrapoint.utils.config_helpers import dict_update
-
 from src.ultrapoint.datasets.coco import Coco
 import logging
 from tqdm import tqdm
@@ -44,8 +41,7 @@ class Tum(Coco):
         **config,
     ):
         # Update config
-        self.config = self.default_config
-        self.config = dict_update(self.config, config)
+        self.config = {**self.default_config, **config}
 
         self.transforms = transform
         self.action = "train" if task == "train" else "val"

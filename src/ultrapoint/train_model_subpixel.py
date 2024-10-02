@@ -4,15 +4,14 @@
 import torch
 import torch.optim
 import torch.utils.data
-from src.ultrapoint.utils.loader import DataLoadersFabric, modelLoader, pretrainedLoader
+from ultrapoint.utils.loader import modelLoader, pretrainedLoader
 import logging
 from loguru import logger
-from src.ultrapoint.utils.config_helpers import dict_update
 from pathlib import Path
 from train_model_frontend import TrainModelFrontend
 
 
-class Train_model_subpixel(TrainModelFrontend):
+class TrainModelSubpixel(TrainModelFrontend):
 
     default_config = {
         "train_iter": 170000,
@@ -23,8 +22,7 @@ class Train_model_subpixel(TrainModelFrontend):
 
     def __init__(self, config, save_path=Path("../.."), device="cpu", verbose=False):
         logger.info("Using: Train_model_subpixel")
-        self.config = self.default_config
-        self.config = dict_update(self.config, config)
+        self.config = {**self.default_config, **config}
         self.device = device
         self.save_path = save_path
         self.cell_size = 8
@@ -198,54 +196,3 @@ class Train_model_subpixel(TrainModelFrontend):
                 task + "-" + element, tb_dict[element], self.n_iter
             )
         pass
-
-
-if __name__ == "__main__":
-    filename = "assets/configs/magicpoint_shapes_subpix.yaml"
-    import yaml
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    torch.set_default_dtype(torch.float32)
-
-    with open(filename, "r") as f:
-        config = yaml.safe_load(f)
-
-    # data = dataLoader(config, dataset='hpatches')
-    task = config["data"]["dataset"]
-
-    train_loader = DataLoadersFabric.create(
-        config, dataset=config["data"]["dataset"], mode="train"
-    )
-    val_loader = DataLoadersFabric.create(
-        config, dataset=config["data"]["dataset"], mode="test"
-    )
-    train_agent = Train_model_subpixel(config, device=device)
-    train_agent.print()
-    # writer from tensorboard
-    from tensorboardX import SummaryWriter
-
-    writer = SummaryWriter()
-    train_agent.writer = writer
-
-    # feed the data into the agent
-    train_agent.train_loader = train_loader
-    train_agent.val_loader = val_loader
-
-    train_agent.loadModel()
-    train_agent.dataParallel()
-
-    try:
-        # train function takes care of training and evaluation
-        train_agent.train()
-    except KeyboardInterrupt:
-        print("press ctrl + c, save model!")
-        train_agent.saveModel()
-        pass
-
-    # try:
-    #     # train function takes care of training and evaluation
-    #     train_agent.train()
-    # except KeyboardInterrupt:
-    #     print ("press ctrl + c, save model!")
-    #     train_agent.saveModel()
-    #     pass

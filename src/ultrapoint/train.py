@@ -4,8 +4,9 @@ import os
 import dotenv
 from tensorboardX import SummaryWriter
 
+from ultrapoint.dataloaders import DataLoadersFactory
 from ultrapoint.utils.config_helpers import load_config, save_config
-from ultrapoint.utils.loader import DataLoadersFabric, get_checkpoints_path, get_module
+from ultrapoint.utils.loader import get_checkpoints_path, get_module
 from ultrapoint.utils.logging import create_logger, logger, log_data_size
 from ultrapoint.utils.torch_helpers import (
     make_deterministic,
@@ -22,10 +23,10 @@ def train(config: dict, output_directory: str):
 
     save_config(os.path.join(output_directory, "config.yaml"), config)
 
-    train_loader = DataLoadersFabric.create(
+    train_loader = DataLoadersFactory.create(
         config, dataset=config["data"]["dataset"], mode="train"
     )
-    val_loader = DataLoadersFabric.create(
+    val_loader = DataLoadersFactory.create(
         config, dataset=config["data"]["dataset"], mode="test"
     )
     log_data_size(train_loader, config, tag="train")

@@ -4,13 +4,8 @@
 # current disable residual loss
 
 """
-# losse
 import torch
 
-def print_var(points):
-    print("points: ", points.shape)
-    print("points: ", points)
-    pass
 
 # from utils.losses import pts_to_bbox
 def pts_to_bbox(points, patch_size):  
@@ -21,7 +16,7 @@ def pts_to_bbox(points, patch_size):
         bbox: (x1, y1, x2, y2)
     """
 
-    shift_l = (patch_size+1) / 2
+    shift_l = (patch_size + 1) / 2
     shift_r = patch_size - shift_l
     pts_l = points-shift_l
     pts_r = points+shift_r+1
@@ -29,13 +24,6 @@ def pts_to_bbox(points, patch_size):
     return bbox
     pass
 
-# roi pooling
-# from utils.losses import _roi_pool
-# def _roi_pool(pred_heatmap, rois, patch_size=8):
-#     from utils.roi_pool import RoIPool  # noqa: E402
-#     m = RoIPool(patch_size, 1.0)
-#     patches = m(pred_heatmap, rois.float())
-#     return patches
 
 # torchvision roi pooling
 def _roi_pool(pred_heatmap, rois, patch_size=8):
@@ -159,12 +147,6 @@ def subpixel_loss(labels_2D, labels_res, pred_heatmap, patch_size=7):
     # filter out??
     rois = torch.cat((points[:,:1], rois), dim=1)
     points_res = labels_res[points[:,0],points[:,1],points[:,2],points[:,3],:]  # tensor [N, 2]
-    # print_var(rois)
-    # print_var(labels_res)
-    # print_var(points)
-    # print("points max: ", points.max(dim=0))
-    # print_var(labels_2D)
-    # print_var(points_res)
 
     patches = _roi_pool(pred_heatmap, rois, patch_size=patch_size)
     # get argsoft max
@@ -200,12 +182,4 @@ def subpixel_loss_no_argmax(labels_2D, labels_res, pred_heatmap, **options):
     loss = torch.norm(loss, p=2, dim=-1).mean()
     # loss = loss.sum()/num_points
     return loss
-    pass
-
-if __name__ == '__main__':
-
-    ## example: 
-    # device='cuda:0'
-    # patches = subpixel_loss(warped_labels.to(device), labels_warped_res.to(device), warped_labels.to(device), 8, patch_size=11)
-
     pass

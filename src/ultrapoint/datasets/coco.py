@@ -1,14 +1,11 @@
-import numpy as np
-
 import torch
-from pathlib import Path
-import torch.utils.data as data
-
-from src.ultrapoint.utils.config_helpers import dict_update
 import cv2
+import numpy
+
+from pathlib import Path
 
 
-class Coco(data.Dataset):
+class Coco(torch.utils.data.Dataset):
     default_config = {
         "labels": None,
         "cache_in_memory": False,
@@ -38,8 +35,7 @@ class Coco(data.Dataset):
     }
 
     def __init__(self, export=False, transform=None, task="train", **config):
-        self.config = self.default_config
-        self.config = dict_update(self.config, config)
+        self.config = {**self.default_config, **config}
 
         self.transforms = transform
         self.action = "train" if task == "train" else "val"
@@ -135,14 +131,14 @@ class Coco(data.Dataset):
         grid_y = crop_size_y / stride
         grid_x = crop_size_x / stride
         start = stride / 2.0 - 0.5
-        xx, yy = np.meshgrid(range(int(grid_x)), range(int(grid_y)))
+        xx, yy = numpy.meshgrid(range(int(grid_x)), range(int(grid_y)))
         xx = xx * stride + start
         yy = yy * stride + start
         d2 = (xx - center[0]) ** 2 + (yy - center[1]) ** 2
         exponent = d2 / 2.0 / sigma / sigma
         mask = exponent <= sigma
-        cofid_map = np.exp(-exponent)
-        cofid_map = np.multiply(mask, cofid_map)
+        cofid_map = numpy.exp(-exponent)
+        cofid_map = numpy.multiply(mask, cofid_map)
         accumulate_confid_map += cofid_map
         accumulate_confid_map[accumulate_confid_map > 1.0] = 1.0
         return accumulate_confid_map
@@ -186,7 +182,7 @@ class Coco(data.Dataset):
             return image
 
         def get_labels_gaussian(pnts, subpixel=False):
-            heatmaps = np.zeros((H, W))
+            heatmaps = numpy.zeros((H, W))
             if subpixel:
                 print("pnt: ", pnts.shape)
                 for center in pnts:
@@ -200,7 +196,7 @@ class Coco(data.Dataset):
                 augmentation = self.ImgAugTransform(**aug_par)
                 # get label_2D
                 labels = points_to_2D(pnts, H, W)
-                labels = labels[:, :, np.newaxis]
+                labels = labels[:, :, numpy.newaxis]
                 heatmaps = augmentation(labels)
 
             # warped_labels_gaussian = torch.tensor(heatmaps).float().view(-1, H, W)
@@ -226,14 +222,14 @@ class Coco(data.Dataset):
             :return:
             """
             augmentation = self.ImgAugTransform(**self.config["augmentation"])
-            img = img[:, :, np.newaxis]
+            img = img[:, :, numpy.newaxis]
             img = augmentation(img)
             cusAug = self.customizedTransform()
             img = cusAug(img, **self.config["augmentation"])
             return img
 
         def points_to_2D(pnts, H, W):
-            labels = np.zeros((H, W))
+            labels = numpy.zeros((H, W))
             pnts = pnts.astype(int)
             labels[pnts[:, 1], pnts[:, 0]] = 1
             return labels
@@ -257,7 +253,7 @@ class Coco(data.Dataset):
         ):
             img_aug = imgPhotometric(img_o)  # numpy array (H, W, 1)
 
-        # img_aug = _preprocess(img_aug[:,:,np.newaxis])
+        # img_aug = _preprocess(img_aug[:,:,numpy.newaxis])
         img_aug = torch.tensor(img_aug, dtype=torch.float32).view(-1, H, W)
 
         valid_mask = self.compute_valid_mask(
@@ -269,10 +265,10 @@ class Coco(data.Dataset):
         if self.config["homography_adaptation"]["enable"]:
             # img_aug = torch.tensor(img_aug)
             homoAdapt_iter = self.config["homography_adaptation"]["num"]
-            homographies = np.stack(
+            homographies = numpy.stack(
                 [
                     self.sample_homography(
-                        np.array([2, 2]),
+                        numpy.array([2, 2]),
                         shift=-1,
                         **self.config["homography_adaptation"]["homographies"]["params"]
                     )
@@ -280,9 +276,9 @@ class Coco(data.Dataset):
                 ]
             )
             ##### use inverse from the sample homography
-            homographies = np.stack([inv(homography) for homography in homographies])
-            homographies[0, :, :] = np.identity(3)
-            # homographies_id = np.stack([homographies_id, homographies])[:-1,...]
+            homographies = numpy.stack([inv(homography) for homography in homographies])
+            homographies[0, :, :] = numpy.identity(3)
+            # homographies_id = numpy.stack([homographies_id, homographies])[:-1,...]
 
             ######
 
@@ -315,12 +311,12 @@ class Coco(data.Dataset):
 
         # laebls
         if self.labels:
-            pnts = np.load(sample["points"])["pts"]
+            pnts = numpy.load(sample["points"])["pts"]
             # pnts = pnts.astype(int)
-            # labels = np.zeros_like(img_o)
+            # labels = numpy.zeros_like(img_o)
             # labels[pnts[:, 1], pnts[:, 0]] = 1
             labels = points_to_2D(pnts, H, W)
-            labels_2D = to_floatTensor(labels[np.newaxis, :, :])
+            labels_2D = to_floatTensor(labels[numpy.newaxis, :, :])
             input.update({"labels_2D": labels_2D})
 
             ## residual
@@ -331,7 +327,7 @@ class Coco(data.Dataset):
                 self.enable_homo_val and self.action == "val"
             ):
                 homography = self.sample_homography(
-                    np.array([2, 2]),
+                    numpy.array([2, 2]),
                     shift=-1,
                     **self.config["augmentation"]["homographic"]["params"]
                 )
@@ -348,7 +344,7 @@ class Coco(data.Dataset):
                     img_aug.squeeze(), inv_homography, mode="bilinear"
                 ).unsqueeze(0)
                 # warped_img = warped_img.squeeze().numpy()
-                # warped_img = warped_img[:,:,np.newaxis]
+                # warped_img = warped_img[:,:,numpy.newaxis]
 
                 ##### check: add photometric #####
 
@@ -377,13 +373,15 @@ class Coco(data.Dataset):
 
             if self.config["warped_pair"]["enable"]:
                 homography = self.sample_homography(
-                    np.array([2, 2]), shift=-1, **self.config["warped_pair"]["params"]
+                    numpy.array([2, 2]),
+                    shift=-1,
+                    **self.config["warped_pair"]["params"]
                 )
 
                 ##### use inverse from the sample homography
-                homography = np.linalg.inv(homography)
+                homography = numpy.linalg.inv(homography)
                 #####
-                inv_homography = np.linalg.inv(homography)
+                inv_homography = numpy.linalg.inv(homography)
 
                 homography = torch.tensor(homography).type(torch.FloatTensor)
                 inv_homography = torch.tensor(inv_homography).type(torch.FloatTensor)
@@ -445,7 +443,7 @@ class Coco(data.Dataset):
                 )
 
             # labels = self.labels2Dto3D(self.cell_size, labels)
-            # labels = torch.from_numpy(labels[np.newaxis,:,:])
+            # labels = torch.from_numpy(labels[numpy.newaxis,:,:])
             # input.update({'labels': labels})
 
             if self.gaussian_label:
@@ -475,6 +473,6 @@ class Coco(data.Dataset):
         augmentation = self.ImgAugTransform(**aug_par)
         # get label_2D
         # labels = points_to_2D(pnts, H, W)
-        image = image[:, :, np.newaxis]
+        image = image[:, :, numpy.newaxis]
         heatmaps = augmentation(image)
         return heatmaps.squeeze()

@@ -10,7 +10,7 @@ from tqdm import tqdm
 from ultrapoint.models.model_wrap import SuperPointFrontend_torch
 from ultrapoint.utils.config_helpers import load_config, save_config
 from ultrapoint.utils.draw import draw_keypoints
-from ultrapoint.utils.loader import DataLoadersFabric
+from ultrapoint.dataloaders import DataLoadersFactory
 from ultrapoint.utils.logging import create_logger, logger
 from ultrapoint.utils.torch_helpers import (
     make_deterministic,
@@ -53,7 +53,7 @@ def homography_adaptation(config):
     conf_thresh = config["model"]["detection_threshold"]
     iterations = config["data"]["homography_adaptation"]["num"]
 
-    test_loader = DataLoadersFabric.create(
+    test_loader = DataLoadersFactory.create(
         config, dataset=config["data"]["dataset"], mode="test"
     )
 
@@ -94,7 +94,9 @@ def homography_adaptation(config):
                 sample["valid_mask"].transpose(0, 1).to(device),
                 device,
             )
-            points = superpoint_wrapper.getPtsFromHeatmap(outputs.detach().cpu().squeeze())
+            points = superpoint_wrapper.getPtsFromHeatmap(
+                outputs.detach().cpu().squeeze()
+            )
 
             if config["model"]["subpixel"]["enable"] and points.shape[1]:
                 superpoint_wrapper.heatmap = outputs
@@ -102,7 +104,9 @@ def homography_adaptation(config):
 
             if config["data"]["dataset"] in ["Kitti", "Kitti_inh"]:
 
-                os.makedirs(Path(output_directory, sample["scene_name"][0]), exist_ok=True)
+                os.makedirs(
+                    Path(output_directory, sample["scene_name"][0]), exist_ok=True
+                )
 
             np.savez_compressed(
                 os.path.join(output_directory, f"{filename}.npz"),
@@ -110,7 +114,9 @@ def homography_adaptation(config):
             )
 
             if config["save_images"]:
-                img_pts = draw_keypoints(sample["image_2D"].numpy().squeeze() * 255, points)
+                img_pts = draw_keypoints(
+                    sample["image_2D"].numpy().squeeze() * 255, points
+                )
                 saveImg(img_pts, os.path.join(output_directory, f"{filename}.png"))
         except KeyboardInterrupt:
             clear_memory()

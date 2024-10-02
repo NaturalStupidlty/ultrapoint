@@ -15,7 +15,6 @@ from pathlib import Path
 import tarfile
 
 import random
-from src.ultrapoint.utils.config_helpers import dict_update
 from src.ultrapoint.datasets import synthetic_dataset
 from tqdm import tqdm
 import os
@@ -177,8 +176,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         random.seed(seed)
 
         # Update config
-        self.config = self.default_config
-        self.config = dict_update(self.config, dict(config))
+        self.config = {**self.default_config, **config}
 
         self.transform = transform
         self.sample_homography = sample_homography

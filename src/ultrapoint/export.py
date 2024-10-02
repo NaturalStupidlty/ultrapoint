@@ -9,7 +9,7 @@ from tensorboardX import SummaryWriter
 
 from src.ultrapoint.utils.utils import prepare_experiment_directory
 from src.ultrapoint.utils.logging import create_logger, logger, log_data_size
-from src.ultrapoint.utils.loader import DataLoadersFabric
+from src.ultrapoint.dataloaders import DataLoadersFactory
 from src.ultrapoint.utils.loader import get_module
 from src.ultrapoint.utils.config_helpers import load_config, save_config
 from src.ultrapoint.utils.torch_helpers import (
@@ -67,7 +67,7 @@ def export_descriptors(config, output_directory):
     )
     os.makedirs(predictions_folder, exist_ok=True)
 
-    test_loader = DataLoadersFabric.create(
+    test_loader = DataLoadersFactory.create(
         config, dataset=config["data"]["dataset"], mode="test"
     )
     log_data_size(test_loader, config, tag="test")

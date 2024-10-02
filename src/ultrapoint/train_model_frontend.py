@@ -9,7 +9,6 @@ from pathlib import Path
 from loguru import logger
 
 from src.ultrapoint.utils.loader import modelLoader, pretrainedLoader
-from src.ultrapoint.utils.config_helpers import dict_update
 from src.ultrapoint.utils.utils import (
     labels2Dto3D,
     flattenDetection,
@@ -74,8 +73,7 @@ class TrainModelFrontend(object):
         """
         # config
         logger.info("Loaded TrainModelFrontend")
-        self.config = self.default_config
-        self.config = dict_update(self.config, config)
+        self.config = {**self.default_config, **config}
 
         # init parameters
         self.device = device

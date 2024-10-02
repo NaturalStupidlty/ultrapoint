@@ -5,6 +5,8 @@ Mimic function from tensorflow.
 
 import torch
 import torch.nn as nn
+
+
 class DepthToSpace(nn.Module):
     def __init__(self, block_size):
         super(DepthToSpace, self).__init__()
@@ -23,6 +25,7 @@ class DepthToSpace(nn.Module):
         output = torch.stack(stack,0).transpose(0,1).permute(0,2,1,3,4).reshape(batch_size, s_height, s_width, s_depth)
         output = output.permute(0, 3, 1, 2)
         return output
+
 
 class SpaceToDepth(nn.Module):
     def __init__(self, block_size):
