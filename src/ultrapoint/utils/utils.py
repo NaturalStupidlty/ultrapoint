@@ -522,21 +522,6 @@ def flattenDetection(semi, tensor=False):
     heatmap = heatmap.squeeze(0) if not batch else heatmap
     return heatmap
 
-
-
-def sample_homo(image):
-    import tensorflow as tf
-    from src.ultrapoint.utils.homographies import sample_homography
-    H = sample_homography(tf.shape(image)[:2])
-    with tf.Session():
-        H_ = H.eval()
-    H_ = np.concatenate((H_, np.array([1])[:, np.newaxis]), axis=1)
-    # warped_im = tf.contrib.image.transform(image, H, interpolation="BILINEAR")
-    mat = np.reshape(H_, (3, 3))
-    # for i in range(batch):
-    #     np.stack()
-    return mat
-
 import cv2
 
 

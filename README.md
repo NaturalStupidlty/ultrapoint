@@ -25,42 +25,7 @@ pip install -r requirements.txt
 
 ### Dataset
 Datasets should be downloaded into $DATA_DIR. The Synthetic Shapes dataset will also be generated there. 
-The folder structure should look like:
 
-```
-datasets/ ($DATA_DIR)
-|-- COCO
-|   |-- train2014
-|   |   |-- file1.jpg
-|   |   `-- ...
-|   `-- val2014
-|       |-- file1.jpg
-|       `-- ...
-`-- HPatches
-|   |-- i_ajuntament
-|   `-- ...
-`-- synthetic_shapes  # will be automatically created
-`-- KITTI (accumulated folders from raw data)
-|   |-- 2011_09_26_drive_0020_sync
-|   |   |-- image_00/
-|   |   `-- ...
-|   |-- ...
-|   `-- 2011_09_28_drive_0001_sync
-|   |   |-- image_00/
-|   |   `-- ...
-|   |-- ...
-|   `-- 2011_09_29_drive_0004_sync
-|   |   |-- image_00/
-|   |   `-- ...
-|   |-- ...
-|   `-- 2011_09_30_drive_0016_sync
-|   |   |-- image_00/
-|   |   `-- ...
-|   |-- ...
-|   `-- 2011_10_03_drive_0027_sync
-|   |   |-- image_00/
-|   |   `-- ...
-```
 - MS-COCO 2014 
     - [MS-COCO 2014 link](http://cocodataset.org/#download)
 - HPatches
@@ -72,7 +37,7 @@ datasets/ ($DATA_DIR)
 
 ### 1) Training MagicPoint on Synthetic Shapes
 ```
-python train.py assets/configs/train/magicpoint_synthetic.yaml magicpoint_synth --eval
+python train.py ../assets/configs/train/magicpoint_synthetic.yaml magicpoint_synth --eval
 tensorboard --logdir assets/logs/magicpoint_synth_2024-09-27_10:44:24
 ```
 you don't need to download synthetic data. You will generate it when first running it.
@@ -86,11 +51,11 @@ This is the step of homography adaptation for joint training.
 
 #### COCO
 ```
-python generate_pseudo_labels.py assets/configs/generate_pseudo_labels/magicpoint_coco_export.yaml
+python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicpoint_coco_export.yaml
 ```
 #### KITTI
 ```
-python generate_pseudo_labels.py assets/configs/generate_pseudo_labels/magicpoint_kitti_export.yaml
+python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicpoint_kitti_export.yaml
 ```
 
 ### 3) Training Superpoint on MS-COCO/ KITTI

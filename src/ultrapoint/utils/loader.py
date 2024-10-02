@@ -170,7 +170,3 @@ def pretrainedLoader(net, optimizer, epoch, path, mode='full', full_path=False):
         net.load_state_dict(checkpoint)
         # net.load_state_dict(torch.load(path,map_location=lambda storage, loc: storage))
     return net, optimizer, epoch
-
-
-if __name__ == '__main__':
-    net = modelLoader(model='SuperPointNet')

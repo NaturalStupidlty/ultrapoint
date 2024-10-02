@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.utils.data
 
 from loguru import logger
+from src.ultrapoint.utils.utils import flattenDetection
 
 
 def labels2Dto3D(cell_size, labels):
@@ -335,14 +336,6 @@ class SuperPointFrontend_torch(object):
           desc - 256xN numpy array of corresponding unit normalized descriptors.
           heatmap - HxW numpy heatmap in range [0,1] of point confidences.
         """
-        # assert img.ndim == 2, 'Image must be grayscale.'
-        # assert img.dtype == np.float32, 'Image must be float32.'
-        # H, W = img.shape[0], img.shape[1]
-        # inp = img.copy()
-        # inp = (inp.reshape(1, H, W))
-        # inp = torch.from_numpy(inp)
-        # inp = torch.autograd.Variable(inp).view(1, 1, H, W)
-        # if self.cuda:
         inp = inp.to(self.device)
         batch_size, H, W = inp.shape[0], inp.shape[2], inp.shape[3]
         if train:
@@ -359,7 +352,6 @@ class SuperPointFrontend_torch(object):
                 semi, coarse_desc = outs["semi"], outs["desc"]
 
         # as tensor
-        from src.ultrapoint.utils.utils import flattenDetection
 
         # flatten detection
         heatmap = flattenDetection(semi, tensor=True)
@@ -623,36 +615,3 @@ class PointTracker(object):
         keepers = np.logical_and.reduce((valid, good_len, not_headless))
         returned_tracks = self.tracks[keepers, :].copy()
         return returned_tracks
-
-    def draw_tracks(self, out, tracks):
-        """Visualize tracks all overlayed on a single image.
-        Inputs
-          out - numpy uint8 image sized HxWx3 upon which tracks are overlayed.
-          tracks - M x (2+L) sized matrix storing track info.
-        """
-        # Store the number of points per camera.
-        pts_mem = self.all_pts
-        N = len(pts_mem)  # Number of cameras/images.
-        # Get offset ids needed to reference into pts_mem.
-        offsets = self.get_offsets()
-        # Width of track and point circles to be drawn.
-        stroke = 1
-        # Iterate through each track and draw it.
-        for track in tracks:
-            clr = myjet[int(np.clip(np.floor(track[1] * 10), 0, 9)), :] * 255
-            for i in range(N - 1):
-                if track[i + 2] == -1 or track[i + 3] == -1:
-                    continue
-                offset1 = offsets[i]
-                offset2 = offsets[i + 1]
-                idx1 = int(track[i + 2] - offset1)
-                idx2 = int(track[i + 3] - offset2)
-                pt1 = pts_mem[i][:2, idx1]
-                pt2 = pts_mem[i + 1][:2, idx2]
-                p1 = (int(round(pt1[0])), int(round(pt1[1])))
-                p2 = (int(round(pt2[0])), int(round(pt2[1])))
-                cv2.line(out, p1, p2, clr, thickness=stroke, lineType=16)
-                # Draw end points of each track.
-                if i == N - 2:
-                    clr2 = (255, 0, 0)
-                    cv2.circle(out, p2, stroke, clr2, -1, lineType=16)

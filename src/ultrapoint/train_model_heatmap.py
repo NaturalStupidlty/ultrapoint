@@ -87,7 +87,9 @@ class TrainModelHeatmap(TrainModelFrontend):
         elif self.config["model"]["sparse_loss"]["enable"]:
             logger.info("Using sparse loss")
             self.desc_params = self.config["model"]["sparse_loss"]["params"]
-            from src.ultrapoint.utils.loss_functions.sparse_loss import batch_descriptor_loss_sparse
+            from src.ultrapoint.utils.loss_functions.sparse_loss import (
+                batch_descriptor_loss_sparse,
+            )
 
             self.descriptor_loss = batch_descriptor_loss_sparse
             self.desc_loss_type = "sparse"
@@ -617,43 +619,3 @@ class TrainModelHeatmap(TrainModelFrontend):
         semi_thd_nms_sample = np.zeros_like(heatmap)
         semi_thd_nms_sample[pts_nms[1, :].astype(int), pts_nms[0, :].astype(int)] = 1
         return semi_thd_nms_sample
-
-
-if __name__ == "__main__":
-    # load config
-    filename = "../../assets/configs/superpoint_coco_train_heatmap.yaml"
-    import yaml
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    torch.set_default_dtype(torch.float32)
-
-    with open(filename, "r") as f:
-        config = yaml.safe_load(f)
-
-    # data = dataLoader(config, dataset='hpatches')
-    task = config["data"]["dataset"]
-
-    data = DataLoader(config, dataset=task, warp_input=True)
-    # test_set, test_loader = data['test_set'], data['test_loader']
-    train_loader, val_loader = data["train_loader"], data["val_loader"]
-
-    model_fe = TrainModelFrontend(config)
-    # print('==> Successfully loaded pre-trained network.')
-
-    train_agent = TrainModelHeatmap(config, device=device)
-
-    train_agent.train_loader = train_loader
-    # train_agent.val_loader = val_loader
-
-    train_agent.loadModel()
-    train_agent.dataParallel()
-    train_agent.train()
-
-    # epoch += 1
-    try:
-        model_fe.train()
-
-    # catch exception
-    except KeyboardInterrupt:
-        logger.info("ctrl + c is pressed. save model")
-    # is_best = True

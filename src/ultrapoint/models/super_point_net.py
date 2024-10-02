@@ -2,7 +2,9 @@
 
 """
 
-from src.ultrapoint.models.unet_parts import *
+import torch
+from torch.nn import BatchNorm2d
+from src.ultrapoint.models.unet_parts import Down, InConv
 
 
 # from models.SubpixelNet import SubpixelNet
@@ -13,10 +15,10 @@ class SuperPointNet(torch.nn.Module):
         super(SuperPointNet, self).__init__()
         c1, c2, c3, c4, c5, d1 = 64, 64, 128, 128, 256, 256
         det_h = 65
-        self.inc = inconv(1, c1)
-        self.down1 = down(c1, c2)
-        self.down2 = down(c2, c3)
-        self.down3 = down(c3, c4)
+        self.inc = InConv(1, c1)
+        self.down1 = Down(c1, c2)
+        self.down2 = Down(c2, c3)
+        self.down3 = Down(c3, c4)
         # self.down4 = down(c4, 512)
         # self.up1 = up(c4+c3, c2)
         # self.up2 = up(c2+c2, c1)
@@ -26,14 +28,14 @@ class SuperPointNet(torch.nn.Module):
         # self.outc = outconv(64, n_classes)
         # Detector Head.
         self.convPa = torch.nn.Conv2d(c4, c5, kernel_size=3, stride=1, padding=1)
-        self.bnPa = nn.BatchNorm2d(c5)
+        self.bnPa = BatchNorm2d(c5)
         self.convPb = torch.nn.Conv2d(c5, det_h, kernel_size=1, stride=1, padding=0)
-        self.bnPb = nn.BatchNorm2d(det_h)
+        self.bnPb = BatchNorm2d(det_h)
         # Descriptor Head.
         self.convDa = torch.nn.Conv2d(c4, c5, kernel_size=3, stride=1, padding=1)
-        self.bnDa = nn.BatchNorm2d(c5)
+        self.bnDa = BatchNorm2d(c5)
         self.convDb = torch.nn.Conv2d(c5, d1, kernel_size=1, stride=1, padding=0)
-        self.bnDb = nn.BatchNorm2d(d1)
+        self.bnDb = BatchNorm2d(d1)
         self.output = None
 
     def forward(self, x):

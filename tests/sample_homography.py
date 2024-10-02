@@ -51,32 +51,13 @@ def test_sample_homography():
 
     with open(filename, "r") as f:
         config = yaml.load(f)
-    test_tf = False
     test_corner_def = True
-
-    if test_tf == True:
-        from src.ultrapoint.utils.homographies import sample_homography as sample_homography
-
-        boundary = 1
-        # from utils.homographies import sample_homography_np as sample_homography
-        # mat_homographies = matrix[np.newaxis, :,:]
-        # mat_homographies = [sample_homography(tf.constant([boundary,boundary]),
-        mat_homographies = [
-            sample_homography(
-                np.array([boundary, boundary]),
-                **config["data"]["warped_pair"]["params"]
-            )
-            for i in range(batch_size)
-        ]
-        mat_homographies = np.stack(mat_homographies, axis=0)
-        corner_img = np.array(
-            [[0.0, 0.0], [0.0, boundary], [boundary, boundary], [boundary, 0.0]]
-        )
-        printCorners(corner_img, mat_homographies)
 
     if test_corner_def:
         corner_img = np.array([(-1, -1), (-1, 1), (1, 1), (1, -1)])
-        from src.ultrapoint.utils.homographies import sample_homography_np as sample_homography
+        from src.ultrapoint.utils.homographies import (
+            sample_homography_np as sample_homography,
+        )
 
         boundary = 2
         mat_homographies = [

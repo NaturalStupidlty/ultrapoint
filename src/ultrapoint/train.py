@@ -1,13 +1,18 @@
 import argparse
-import dotenv
 import os
 
+import dotenv
 from tensorboardX import SummaryWriter
-from ultrapoint.utils.utils import prepare_experiment_directory
+
+from ultrapoint.utils.config_helpers import load_config, save_config
 from ultrapoint.utils.loader import DataLoader, get_checkpoints_path, get_module
 from ultrapoint.utils.logging import create_logger, logger, log_data_size
-from ultrapoint.utils.torch_helpers import make_deterministic, set_precision, determine_device
-from ultrapoint.utils.config_helpers import load_config, save_config
+from ultrapoint.utils.torch_helpers import (
+    make_deterministic,
+    set_precision,
+    determine_device,
+)
+from ultrapoint.utils.utils import prepare_experiment_directory
 
 
 def train(config: dict, output_directory: str):
@@ -21,20 +26,14 @@ def train(config: dict, output_directory: str):
     log_data_size(train_loader, config, tag="train")
     log_data_size(val_loader, config, tag="val")
 
-    # init the training agent using config file
     train_model_frontend = get_module(config["front_end_model"])
     train_agent = train_model_frontend(
         config, save_path=get_checkpoints_path(output_directory), device=device
     )
 
-    # writer from tensorboard
     train_agent.writer = SummaryWriter(output_directory)
-
-    # feed the data into the agent
     train_agent.train_loader = train_loader
     train_agent.val_loader = val_loader
-
-    # load model initiates the model and load the pretrained model (if any)
     train_agent.loadModel()
     train_agent.dataParallel()
 
@@ -43,7 +42,6 @@ def train(config: dict, output_directory: str):
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt, saving model...")
         train_agent.saveModel()
-        pass
 
 
 def parse_arguments():
