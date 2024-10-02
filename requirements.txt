@@ -20,5 +20,4 @@ scikit-learn
 torchgeometry
 torchsummary
 loguru
-python-dotenv
 black

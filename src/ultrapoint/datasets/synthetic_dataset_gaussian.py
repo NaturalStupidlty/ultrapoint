@@ -23,14 +23,13 @@ import shutil
 
 import multiprocessing
 
-TMPDIR = os.getenv("SYN_TMPDIR")
-
 
 def load_as_float(path):
     return imread(path).astype(np.float32) / 255
 
 
 class SyntheticDatasetGaussian(data.Dataset):
+    # TODO: move to yaml
     default_config = {
         "primitives": "all",
         "truncate": {},
@@ -94,7 +93,7 @@ class SyntheticDatasetGaussian(data.Dataset):
     logger.info(drawing_primitives)
 
     def dump_primitive_data(self, primitive, tar_path, config):
-        temp_dir = Path(TMPDIR, primitive)
+        temp_dir = Path(self._data_path, primitive)
 
         logger.info(f"Generating .tar file for primitive {primitive}.\n")
         synthetic_dataset.set_random_state(
@@ -177,7 +176,7 @@ class SyntheticDatasetGaussian(data.Dataset):
 
         # Update config
         self.config = {**self.default_config, **config}
-
+        self._data_path = config.get("path", "/tmp")
         self.transform = transform
         self.sample_homography = sample_homography
         self.compute_valid_mask = compute_valid_mask
@@ -211,7 +210,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         )
 
         basepath = Path(
-            os.getenv("DATA_PATH"),
+            self._data_path,
             "synthetic_shapes"
             + ("_{}".format(config["suffix"]) if config["suffix"] is not None else ""),
         )
@@ -228,7 +227,7 @@ class SyntheticDatasetGaussian(data.Dataset):
             logger.debug(f"tar_path: {tar_path}")
             tar = tarfile.open(tar_path)
             # temp_dir = Path(os.environ['TMPDIR'])
-            temp_dir = Path(TMPDIR)
+            temp_dir = Path(self._data_path)
             tar.extractall(path=temp_dir)
             tar.close()
 

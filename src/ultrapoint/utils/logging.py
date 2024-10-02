@@ -5,11 +5,11 @@ from loguru import logger
 from torch.utils.data import DataLoader
 
 
-def create_logger(level: str, logs_dir: str) -> None:
-    os.makedirs(logs_dir, exist_ok=True)
+def create_logger(level: str, directory: str) -> None:
+    os.makedirs(directory, exist_ok=True)
     logger.remove()
     filename = f"{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
-    logger.add(os.path.join(logs_dir, filename), level="DEBUG", mode="w")
+    logger.add(os.path.join(directory, filename), level="DEBUG", mode="w")
     logger.add(sys.stdout, level=level)
 
 

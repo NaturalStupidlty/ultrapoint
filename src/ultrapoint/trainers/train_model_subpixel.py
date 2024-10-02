@@ -1,14 +1,16 @@
 """script for subpixel experiment (not tested)
 """
 
+import logging
 import torch
 import torch.optim
 import torch.utils.data
-from ultrapoint.utils.loader import modelLoader, pretrainedLoader
-import logging
+
 from loguru import logger
 from pathlib import Path
-from train_model_frontend import TrainModelFrontend
+
+from ultrapoint.utils.loader import modelLoader, pretrainedLoader
+from ultrapoint.trainers.train_model_frontend import TrainModelFrontend
 
 
 class TrainModelSubpixel(TrainModelFrontend):
@@ -20,17 +22,14 @@ class TrainModelSubpixel(TrainModelFrontend):
         "model": {"subpixel": {"enable": False}},
     }
 
-    def __init__(self, config, save_path=Path("../.."), device="cpu", verbose=False):
+    def __init__(self, config, save_path, device=None):
+        super().__init__(config, save_path, device)
         logger.info("Using: Train_model_subpixel")
-        self.config = {**self.default_config, **config}
-        self.device = device
         self.save_path = save_path
         self.cell_size = 8
         self.max_iter = config["train_iter"]
         self._train = True
         self._eval = True
-
-        pass
 
     def print(self):
         print("hello")

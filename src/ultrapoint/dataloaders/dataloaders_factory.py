@@ -3,16 +3,23 @@ import numpy
 import torchvision.transforms as transforms
 
 from loguru import logger
-from ultrapoint.utils.loader import get_module
+from ultrapoint.datasets.coco import Coco
+from ultrapoint.datasets.synthetic_dataset_gaussian import SyntheticDatasetGaussian
 
 
 class DataLoadersFactory:
-    @staticmethod
-    def create(config: dict, dataset: str, mode: str):
-        assert mode in ["train", "test"], f"Mode {mode} not supported"
+    SUPPORTED_DATASETS = {
+        "Coco": Coco,
+        "SyntheticDatasetGaussian": SyntheticDatasetGaussian,
+    }
 
-        datasets_sources = "ultrapoint.datasets"
-        dataset_module = get_module(dataset, datasets_sources)
+    @staticmethod
+    def create(config: dict, dataset_name: str, mode: str):
+        assert mode in ["train", "test"], f"Mode {mode} not supported"
+        assert (
+            dataset_name in DataLoadersFactory.SUPPORTED_DATASETS
+        ), f"Dataset {dataset_name} not supported"
+
         workers = config["data"].get(f"{mode}_workers", 1)
         batch_size = (
             config["model"]["batch_size"]
@@ -21,8 +28,9 @@ class DataLoadersFactory:
         )
 
         logger.info(f"{mode.upper()} Workers: {workers}")
-        logger.info(f"{mode.upper()} Dataset: {dataset_module.__name__}")
+        logger.info(f"{mode.upper()} Dataset: {dataset_name}")
 
+        dataset_module = DataLoadersFactory.SUPPORTED_DATASETS[dataset_name]
         dataset = dataset_module(
             transform=transforms.Compose([transforms.ToTensor()]),
             task=mode,

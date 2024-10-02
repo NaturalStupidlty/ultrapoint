@@ -4,18 +4,15 @@ Author: You-Yi Jau, Rui Zhu
 Date: 2019/12/12
 """
 
-import numpy as np
+import numpy
 import torch
-
 import torch.optim
 import torch.nn as nn
-
 import torch.utils.data
-from loguru import logger
 
-from src.ultrapoint.utils.utils import precisionRecall_torch
-from pathlib import Path
-from train_model_frontend import TrainModelFrontend
+from loguru import logger
+from ultrapoint.utils.utils import precisionRecall_torch
+from ultrapoint.trainers.train_model_frontend import TrainModelFrontend
 
 
 def thd_img(img, thd=0.015):
@@ -29,7 +26,7 @@ def toNumpy(tensor):
 
 
 def img_overlap(img_r, img_g, img_gray):  # img_b repeat
-    img = np.concatenate((img_gray, img_gray, img_gray), axis=0)
+    img = numpy.concatenate((img_gray, img_gray, img_gray), axis=0)
     img[0, :, :] += img_r[0, :, :]
     img[1, :, :] += img_g[0, :, :]
     img[img > 1] = 1
@@ -56,13 +53,13 @@ class TrainModelHeatmap(TrainModelFrontend):
         "data": {"gaussian_label": {"enable": False}},
     }
 
-    def __init__(self, config, save_path=Path("../.."), device="cpu", verbose=False):
+    def __init__(self, config, save_path, device=None):
+        super().__init__(config, save_path, device)
         self.config = {**self.default_config, **config}
         logger.info("Loaded TrainModeHeatmap")
         logger.info(f"Config: {self.config}")
 
         # init parameters
-        self.device = device
         self.save_path = save_path
         self._train = True
         self._eval = True
@@ -91,11 +88,6 @@ class TrainModelHeatmap(TrainModelFrontend):
 
             self.descriptor_loss = batch_descriptor_loss_sparse
             self.desc_loss_type = "sparse"
-
-        # load model
-        # self.net = self.loadModel(*config['model'])
-        self.logImportantConfig()
-        pass
 
     def detector_loss(self, input, target, mask=None, loss_type="softmax"):
         """
@@ -216,7 +208,7 @@ class TrainModelHeatmap(TrainModelFrontend):
         loss_det = self.detector_loss(
             input=outs["semi"],
             target=labels_3D.to(self.device),
-            mask=mask_3D_flattened,
+            mask=mask_3D_flattened.to(self.device),
             loss_type=det_loss_type,
         )
         # warp
@@ -232,7 +224,7 @@ class TrainModelHeatmap(TrainModelFrontend):
             loss_det_warp = self.detector_loss(
                 input=outs_warp["semi"],
                 target=labels_3D.to(self.device),
-                mask=mask_3D_flattened,
+                mask=mask_3D_flattened.to(self.device),
                 loss_type=det_loss_type,
             )
         else:
@@ -368,7 +360,7 @@ class TrainModelHeatmap(TrainModelFrontend):
                     )
                     for i in range(heatmap_nms_batch.shape[0])
                 ]
-                nms_overlap = np.stack(nms_overlap, axis=0)
+                nms_overlap = numpy.stack(nms_overlap, axis=0)
                 images_dict.update({name + "_nms_overlap": nms_overlap})
 
             from src.ultrapoint.utils.torch_helpers import to_numpy
@@ -376,7 +368,7 @@ class TrainModelHeatmap(TrainModelFrontend):
             update_overlap(
                 self.images_dict,
                 labels_2D,
-                heatmap_org_nms_batch[np.newaxis, ...],
+                heatmap_org_nms_batch[numpy.newaxis, ...],
                 img,
                 "original",
             )
@@ -392,7 +384,7 @@ class TrainModelHeatmap(TrainModelFrontend):
                 update_overlap(
                     self.images_dict,
                     labels_warp_2D,
-                    heatmap_warp_nms_batch[np.newaxis, ...],
+                    heatmap_warp_nms_batch[numpy.newaxis, ...],
                     img_warp,
                     "warped",
                 )
@@ -451,11 +443,11 @@ class TrainModelHeatmap(TrainModelFrontend):
 
             # precision, recall
             # pr_mean = self.batch_precision_recall(
-            #     to_floatTensor(heatmap_warp_nms_batch[:, np.newaxis, ...]),
+            #     to_floatTensor(heatmap_warp_nms_batch[:, numpy.newaxis, ...]),
             #     sample["warped_labels"],
             # )
             pr_mean = self.batch_precision_recall(
-                to_floatTensor(heatmap_org_nms_batch[:, np.newaxis, ...]),
+                to_floatTensor(heatmap_org_nms_batch[:, numpy.newaxis, ...]),
                 sample["labels_2D"],
             )
             self.scalar_dict.update(pr_mean)
@@ -478,9 +470,11 @@ class TrainModelHeatmap(TrainModelFrontend):
         heatmap_np = to_numpy(heatmap)
         ## heatmap_nms
         heatmap_nms_batch = [self.heatmap_nms(h) for h in heatmap_np]  # [batch, H, W]
-        heatmap_nms_batch = np.stack(heatmap_nms_batch, axis=0)
+        heatmap_nms_batch = numpy.stack(heatmap_nms_batch, axis=0)
         # images_dict.update({name + '_nms_batch': heatmap_nms_batch})
-        images_dict.update({name + "_nms_batch": heatmap_nms_batch[:, np.newaxis, ...]})
+        images_dict.update(
+            {name + "_nms_batch": heatmap_nms_batch[:, numpy.newaxis, ...]}
+        )
         return heatmap_nms_batch
 
     def get_residual_loss(self, labels_2D, heatmap, labels_res, name=""):
@@ -515,13 +509,13 @@ class TrainModelHeatmap(TrainModelFrontend):
         for i in range(batch_labels.shape[0]):
             precision_recall = precisionRecall_torch(batch_pred[i], batch_labels[i])
             precision_recall_list.append(precision_recall)
-        precision = np.mean(
+        precision = numpy.mean(
             [
                 precision_recall["precision"]
                 for precision_recall in precision_recall_list
             ]
         )
-        recall = np.mean(
+        recall = numpy.mean(
             [precision_recall["recall"] for precision_recall in precision_recall_list]
         )
         return {"precision": precision, "recall": recall}
@@ -614,6 +608,6 @@ class TrainModelHeatmap(TrainModelFrontend):
         heatmap = heatmap.squeeze()
         # print("heatmap: ", heatmap.shape)
         pts_nms = getPtsFromHeatmap(heatmap, conf_thresh, nms_dist)
-        semi_thd_nms_sample = np.zeros_like(heatmap)
+        semi_thd_nms_sample = numpy.zeros_like(heatmap)
         semi_thd_nms_sample[pts_nms[1, :].astype(int), pts_nms[0, :].astype(int)] = 1
         return semi_thd_nms_sample

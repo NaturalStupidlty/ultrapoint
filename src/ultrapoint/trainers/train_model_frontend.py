@@ -1,22 +1,31 @@
+import os
 import torch
 import torch.optim
 import torch.nn as nn
 import torch.utils.data
 import numpy as np
 
+from typing import Union
 from tqdm import tqdm
-from pathlib import Path
 from loguru import logger
-
-from src.ultrapoint.utils.loader import modelLoader, pretrainedLoader
-from src.ultrapoint.utils.utils import (
+from tensorboardX import SummaryWriter
+from ultrapoint.utils.loader import modelLoader, pretrainedLoader
+from ultrapoint.utils.utils import (
     labels2Dto3D,
     flattenDetection,
     labels2Dto3D_flattened,
 )
-from src.ultrapoint.utils.utils import saveImg
-from src.ultrapoint.utils.utils import precisionRecall_torch
-from src.ultrapoint.utils.utils import save_checkpoint
+from ultrapoint.utils.utils import saveImg
+from ultrapoint.utils.utils import precisionRecall_torch
+from ultrapoint.utils.utils import save_checkpoint
+from ultrapoint.utils.loader import get_checkpoints_path
+from ultrapoint.utils.torch_helpers import (
+    determine_device,
+    clear_memory,
+    set_precision,
+    make_deterministic,
+)
+from ultrapoint.utils.config_helpers import save_config
 
 
 def thd_img(img, thd=0.015):
@@ -44,19 +53,12 @@ def img_overlap(img_r, img_g, img_gray):  # img_b repeat
     return img
 
 
-class TrainModelFrontend(object):
+class TrainModelFrontend:
     """
     This is the base class for training classes. Wrap pytorch net to help training process.
     """
 
-    default_config = {
-        "train_iter": 170000,
-        "save_interval": 2000,
-        "tensorboard_interval": 200,
-        "model": {"subpixel": {"enable": False}},
-    }
-
-    def __init__(self, config, save_path=Path("../.."), device="cpu", verbose=False):
+    def __init__(self, config, save_path: str, device: Union[str, torch.device] = None):
         """
         ## default dimension:
             heatmap: torch (batch_size, H, W, 1)
@@ -71,23 +73,20 @@ class TrainModelFrontend(object):
         :param device:
         :param verbose:
         """
-        # config
-        logger.info("Loaded TrainModelFrontend")
-        self.config = {**self.default_config, **config}
-
-        # init parameters
-        self.device = device
-        self.save_path = save_path
+        self.config = config
+        self.device = device if device is not None else determine_device()
+        self.save_path = get_checkpoints_path(save_path)
         self._train = True
         self._eval = True
-        self.cell_size = 8
         self.subpixel = False
         self.loss = 0
-
+        self.n_iter = 0
+        self.cell_size = 8
+        self._val_loader = None
         self.max_iter = config["train_iter"]
 
         if self.config["model"]["dense_loss"]["enable"]:
-            ## original superpoint paper uses dense loss
+            # original superpoint paper uses dense loss
             logger.info("Using dense loss")
             from src.ultrapoint.utils.utils import descriptor_loss
 
@@ -95,7 +94,7 @@ class TrainModelFrontend(object):
             self.descriptor_loss = descriptor_loss
             self.desc_loss_type = "dense"
         elif self.config["model"]["sparse_loss"]["enable"]:
-            ## our sparse loss has similar performace, more efficient
+            # our sparse loss has similar performace, more efficient
             logger.info("Using sparse loss")
             self.desc_params = self.config["model"]["sparse_loss"]["params"]
             from src.ultrapoint.utils.loss_functions.sparse_loss import (
@@ -106,7 +105,7 @@ class TrainModelFrontend(object):
             self.desc_loss_type = "sparse"
 
         if self.config["model"]["subpixel"]["enable"]:
-            ## deprecated: only for testing subpixel prediction
+            # deprecated: only for testing subpixel prediction
             self.subpixel = True
 
             def get_func(path, name):
@@ -118,11 +117,19 @@ class TrainModelFrontend(object):
                 "utils.losses", self.config["model"]["subpixel"]["loss_func"]
             )
 
-        # load model
-        # self.net = self.loadModel(*config['model'])
-        self.logImportantConfig()
+        save_config(os.path.join(save_path, "config.yaml"), config)
+        logger.info("Loaded TrainModelFrontend")
 
-        pass
+        clear_memory()
+        make_deterministic(config["seed"])
+        set_precision(config["precision"])
+        device = determine_device() if device is None else device
+        logger.info(f"Training with device: {device}")
+
+        self.logImportantConfig()
+        self.writer = SummaryWriter(save_path)
+        self.loadModel()
+        self.dataParallel()
 
     def logImportantConfig(self):
         """
@@ -245,39 +252,48 @@ class TrainModelFrontend(object):
         :param options:
         :return:
         """
-        # training info
         logger.info(f"Iteration: {self.n_iter}")
         logger.info(f"Number of iterations: {self.max_iter}")
+
         running_losses = []
         epoch = 0
-        # Train one epoch
+
+        # TODO: pretty tqdm logs
         while self.n_iter < self.max_iter:
-            logger.info(f"Epoch: {epoch}")
-            epoch += 1
-            for i, sample_train in tqdm(enumerate(self.train_loader)):
-                # train one sample
-                loss_out = self.train_val_sample(sample_train, self.n_iter, True)
-                self.n_iter += 1
-                running_losses.append(loss_out)
-                # run validation
-                if self._eval and self.n_iter % self.config["validation_interval"] == 0:
-                    logger.info("====== Validating...")
-                    for j, sample_val in enumerate(self.val_loader):
-                        self.train_val_sample(sample_val, self.n_iter + j, False)
-                        if j > self.config.get("validation_size", 3):
-                            break
-                # save model
-                if self.n_iter % self.config["save_interval"] == 0:
-                    logger.info(
-                        f"Model is saved every: every {self.config['save_interval']}, current iteration: {self.n_iter}",
-                    )
-                    self.saveModel()
-                # ending condition
-                if self.n_iter > self.max_iter:
-                    # end training
-                    logger.info("End training: {self.n_iter}")
-                    break
-        pass
+            try:
+                logger.info(f"Epoch: {epoch}")
+                epoch += 1
+                for i, sample_train in tqdm(enumerate(self.train_loader)):
+                    # train one sample
+                    loss_out = self.train_val_sample(sample_train, self.n_iter, True)
+                    self.n_iter += 1
+                    running_losses.append(loss_out)
+                    # run validation
+                    if (
+                        self._eval
+                        and self.n_iter % self.config["validation_interval"] == 0
+                    ):
+                        logger.info("Validating...")
+                        for j, sample_val in enumerate(self.val_loader):
+                            self.train_val_sample(sample_val, self.n_iter + j, False)
+                            if j > self.config.get("validation_size", 3):
+                                break
+                    # save model
+                    if self.n_iter % self.config["save_interval"] == 0:
+                        logger.info(
+                            f"Model is saved every: every {self.config['save_interval']}, current iteration: {self.n_iter}",
+                        )
+                        self.saveModel()
+
+                    if self.n_iter > self.max_iter:
+                        logger.info("End training: {self.n_iter}")
+                        break
+
+            except KeyboardInterrupt:
+                logger.info("KeyboardInterrupt, saving model...")
+                self.saveModel()
+            finally:
+                self.writer.close()
 
     def getLabels(self, labels_2D, cell_size, device="cpu"):
         """

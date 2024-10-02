@@ -48,4 +48,4 @@ seed: 0
 precision: medium
 logging:
   level: DEBUG
-  logs_dir: ../assets/logs/generate_pseudo_labels
+  directory: ../assets/logs/generate_pseudo_labels

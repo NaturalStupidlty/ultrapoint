@@ -1,20 +1,16 @@
 import argparse
 import os
-from pathlib import Path
-
-import dotenv
-import numpy as np
 import torch
+import numpy
+
 from tqdm import tqdm
 
 from ultrapoint.models.model_wrap import SuperPointFrontend_torch
-from ultrapoint.utils.config_helpers import load_config, save_config
+from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.draw import draw_keypoints
 from ultrapoint.dataloaders import DataLoadersFactory
 from ultrapoint.utils.logging import create_logger, logger
 from ultrapoint.utils.torch_helpers import (
-    make_deterministic,
-    set_precision,
     determine_device,
     clear_memory,
 )
@@ -45,7 +41,7 @@ def homography_adaptation(config):
     device = determine_device()
     logger.info(f"Training with device: {device}")
 
-    output_directory = os.path.join(config["data"]["data_path"], "pseudo_labels")
+    output_directory = os.path.join(config["data"]["path"], "pseudo_labels")
     os.makedirs(output_directory, exist_ok=True)
 
     top_k = config["model"].get("top_k", -1)
@@ -54,7 +50,7 @@ def homography_adaptation(config):
     iterations = config["data"]["homography_adaptation"]["num"]
 
     test_loader = DataLoadersFactory.create(
-        config, dataset=config["data"]["dataset"], mode="test"
+        config, dataset_name=config["data"]["dataset"], mode="test"
     )
 
     path = config["pretrained"]
@@ -103,12 +99,12 @@ def homography_adaptation(config):
                 points = superpoint_wrapper.soft_argmax_points([points])[0]
 
             if config["data"]["dataset"] in ["Kitti", "Kitti_inh"]:
-
                 os.makedirs(
-                    Path(output_directory, sample["scene_name"][0]), exist_ok=True
+                    os.path.join(output_directory, sample["scene_name"][0]),
+                    exist_ok=True,
                 )
 
-            np.savez_compressed(
+            numpy.savez_compressed(
                 os.path.join(output_directory, f"{filename}.npz"),
                 pts=points.transpose()[:top_k, :],
             )
@@ -127,22 +123,14 @@ def homography_adaptation(config):
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=str)
-    parser.add_argument("--eval", action="store_true")
-    parser.add_argument(
-        "--debug", action="store_true", default=False, help="Enable debugging mode"
-    )
+
     return parser.parse_args()
 
 
 def main():
-    dotenv.load_dotenv()
     args = parse_arguments()
     config = load_config(args.config)
-    clear_memory()
-    set_precision(config["precision"])
-    make_deterministic(config["seed"])
     create_logger(**config["logging"])
-    save_config(os.path.join(config["logging"]["logs_dir"], "config.yaml"), config)
     homography_adaptation(config)
 
 

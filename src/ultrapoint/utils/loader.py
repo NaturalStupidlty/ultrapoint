@@ -3,7 +3,6 @@
 """
 import os
 import re
-import importlib
 import torch
 import torch.optim
 
@@ -23,12 +22,6 @@ def get_checkpoints_path(output_dir):
     return save_path
 
 
-def get_module(name, path: str = "") -> callable:
-    path = camel_to_snake(name) if not path else f"{path}.{camel_to_snake(name)}"
-    module = importlib.import_module(path)
-    return getattr(module, name)
-
-
 def camel_to_snake(name: str) -> str:
     # Add underscores between words and convert to lowercase
     snake_case = re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
@@ -36,11 +29,11 @@ def camel_to_snake(name: str) -> str:
 
 
 def get_model(name):
-    mod = __import__('models.{}'.format(name), fromlist=[''])
+    mod = __import__(f"models.{name}", fromlist=[''])
     return getattr(mod, name)
 
 
-def modelLoader(model='SuperPointNet', **options):
+def modelLoader(model: str, **options):
     logger.info(f"Creating model: {model}", )
     net = get_model(model)
     net = net(**options)
