@@ -37,7 +37,9 @@ data:
     warped_pair:
         enable: false
         valid_border_margin: 0
-    workers: 8
+    
+    train_workers: 16
+    test_workers: 16
 
 model:
     name: 'SuperPointNet'

@@ -10,4 +10,4 @@ def load_config(config_path: str):
 
 def save_config(config_path: str, config: dict):
     with open(config_path, "w") as f:
-        yaml.dump(config, f, default_flow_style=False)
+        yaml.dump(config, f, default_flow_style=False, indent=4)
