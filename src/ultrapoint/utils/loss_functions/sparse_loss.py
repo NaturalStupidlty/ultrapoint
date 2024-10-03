@@ -1,9 +1,9 @@
-from src.ultrapoint import utils as correspondence_finder
+from ultrapoint.utils.correspondence_tools import correspondence_finder
 import numpy as np
 import torch
 
-from src.ultrapoint.utils.homographies import scale_homography_torch
-from src.ultrapoint.utils.loss_functions.pixelwise_contrastive_loss import (
+from ultrapoint.utils.homographies import scale_homography_torch
+from ultrapoint.utils.loss_functions.pixelwise_contrastive_loss import (
     PixelwiseContrastiveLoss,
 )
 

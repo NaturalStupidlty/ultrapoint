@@ -40,11 +40,11 @@ You need pseudo ground truth labels from step 2).
 
 #### COCO
 ```
-python train.py train configs/superpoint_coco_train_heatmap.yaml superpoint_coco --eval --debug
+python train.py ../assets/configs/train/superpoint_coco_heatmap.yaml superpoint_coco
 ```
 #### KITTI
 ```
-python train.py train configs/superpoint_kitti_train_heatmap.yaml superpoint_kitti --eval --debug
+python train.py ../assets/configs/train/superpoint_kitti_heatmap.yaml superpoint_kitti
 ```
 
 ### 4) Export/ Evaluate the metrics on HPatches

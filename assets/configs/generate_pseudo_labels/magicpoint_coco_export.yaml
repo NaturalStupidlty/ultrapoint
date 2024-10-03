@@ -2,15 +2,14 @@ data:
     dataset: 'Coco'
     path: '../assets/datasets/coco/train2014'
     labels: null
-    cache_in_memory: False
-    truncate: None
+    cache_in_memory: false
+    truncate: null
     num_parallel_calls: 10
     validation_size: 100
     preprocessing:
         resize: [240, 320]
     gaussian_label:
         enable: false
-        sigma: 1.0
     augmentation:
         photometric:
             enable: false
