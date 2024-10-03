@@ -3,7 +3,7 @@ import argparse
 from ultrapoint.dataloaders import DataLoadersFactory
 from ultrapoint.trainers import TrainersFactory
 from ultrapoint.utils.config_helpers import load_config
-from ultrapoint.utils.logging import create_logger, logger, log_data_size
+from ultrapoint.utils.logging import create_logger, log_data_size
 from ultrapoint.utils.utils import prepare_experiment_directory
 
 
