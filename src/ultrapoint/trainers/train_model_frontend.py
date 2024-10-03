@@ -4,12 +4,13 @@ import torch.optim
 import torch.nn as nn
 import torch.utils.data
 import numpy as np
+import torch.optim as optim
 
 from typing import Union
 from tqdm import tqdm
 from loguru import logger
 from tensorboardX import SummaryWriter
-from ultrapoint.utils.loader import modelLoader, pretrainedLoader
+from ultrapoint.models.models_fabric import ModelsFabric
 from ultrapoint.utils.utils import (
     labels2Dto3D,
     flattenDetection,
@@ -79,6 +80,7 @@ class TrainModelFrontend:
         self._train = True
         self._eval = True
         self.subpixel = False
+        self._epoch = 0
         self.loss = 0
         self.n_iter = 0
         self.cell_size = 8
@@ -128,8 +130,7 @@ class TrainModelFrontend:
 
         self.logImportantConfig()
         self.writer = SummaryWriter(save_path)
-        self.loadModel()
-        self.dataParallel()
+        self._load()
 
     def logImportantConfig(self):
         """
@@ -145,72 +146,42 @@ class TrainModelFrontend:
         logger.info(f"Descriptor: {self.desc_loss_type}")
         for item in list(self.desc_params):
             logger.info(f"{item} : {self.desc_params[item]}")
-        pass
 
-    def dataParallel(self):
-        """
-        put network and optimizer to multiple gpus
-        :return:
-        """
-        logger.info(f"Using {torch.cuda.device_count()} GPUs")
-        self.net = nn.DataParallel(self.net)
-        self.optimizer = self.adamOptim(
-            self.net, lr=self.config["model"]["learning_rate"]
-        )
-        pass
-
-    def adamOptim(self, net, lr):
-        """
-        initiate adam optimizer
-        :param net: network structure
-        :param lr: learning rate
-        :return:
-        """
-        logger.info("Adam optimizer")
-        import torch.optim as optim
-
-        optimizer = optim.Adam(net.parameters(), lr=lr, betas=(0.9, 0.999))
-        return optimizer
-
-    def loadModel(self):
+    def _load(self):
         """
         load model from name and params
         init or load optimizer
         :return:
         """
-        model = self.config["model"]["name"]
-        params = self.config["model"]["params"]
-        logger.info(f"Model: {model}")
-        net = modelLoader(model=model, **params).to(self.device)
-        logger.info("=> setting adam solver")
-        optimizer = self.adamOptim(net, lr=self.config["model"]["learning_rate"])
+        logger.info(f"Model: {self.config['model']['name']}")
+        if self.config["pretrained"] is not None:
+            checkpoint = torch.load(self.config["pretrained"])
+            self.net = ModelsFabric.create(
+                model_name=self.config["model"]["name"],
+                state=checkpoint["model_state_dict"],
+                **self.config["model"]["params"],
+            ).to(self.device)
 
-        n_iter = 0
-        ## new model or load pretrained
-        if self.config["retrain"] == True:
-            logger.info("New model")
-            pass
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            self.epoch = checkpoint.get("epoch", 0)
+            self.n_iter = checkpoint.get("n_iter", 0)
+            self.loss = checkpoint.get("loss", 0)
+
         else:
-            path = self.config["pretrained"]
-            mode = (
-                "" if path[-4:] == ".pth" else "full"
-            )  # the suffix is '.pth' or 'tar.gz'
-            logger.info("load pretrained model from: %s", path)
-            net, optimizer, n_iter = pretrainedLoader(
-                net, optimizer, n_iter, path, mode=mode, full_path=True
+            logger.info("Training model from scratch")
+            self.net = ModelsFabric.create(
+                model_name=self.config["model"]["name"],
+                **self.config["model"]["params"],
+            ).to(self.device)
+
+            self.optimizer = optim.Adam(
+                self.net.parameters(),
+                lr=self.config["model"]["learning_rate"],
+                betas=(0.9, 0.999),
             )
-            logger.info("successfully load pretrained model from: %s", path)
 
-        def setIter(n_iter):
-            if self.config["reset_iter"]:
-                logger.info("reset iterations to 0")
-                n_iter = 0
-            return n_iter
-
-        self.net = net
-        self.optimizer = optimizer
-        self.n_iter = setIter(n_iter)
-        pass
+        logger.info(f"Using {torch.cuda.device_count()} GPUs")
+        self.net = nn.DataParallel(self.net)
 
     @property
     def writer(self):
@@ -256,17 +227,13 @@ class TrainModelFrontend:
         logger.info(f"Number of iterations: {self.max_iter}")
 
         running_losses = []
-        epoch = 0
-
         # TODO: pretty tqdm logs
         while self.n_iter < self.max_iter:
             try:
-                logger.info(f"Epoch: {epoch}")
-                epoch += 1
+                logger.info(f"Epoch: {self._epoch}")
                 for i, sample_train in tqdm(enumerate(self.train_loader)):
                     # train one sample
                     loss_out = self.train_val_sample(sample_train, self.n_iter, True)
-                    self.n_iter += 1
                     running_losses.append(loss_out)
                     # run validation
                     if (
@@ -278,20 +245,24 @@ class TrainModelFrontend:
                             self.train_val_sample(sample_val, self.n_iter + j, False)
                             if j > self.config.get("validation_size", 3):
                                 break
-                    # save model
+
                     if self.n_iter % self.config["save_interval"] == 0:
                         logger.info(
                             f"Model is saved every: every {self.config['save_interval']}, current iteration: {self.n_iter}",
                         )
-                        self.saveModel()
+                        self._save()
 
                     if self.n_iter > self.max_iter:
                         logger.info("End training: {self.n_iter}")
                         break
 
+                    self.n_iter += 1
+
+                self._epoch += 1
+
             except KeyboardInterrupt:
                 logger.info("KeyboardInterrupt, saving model...")
-                self.saveModel()
+                self._save()
             finally:
                 self.writer.close()
 
@@ -526,8 +497,6 @@ class TrainModelFrontend:
                 "loss": loss,
                 "loss_det": loss_det,
                 "loss_det_warp": loss_det_warp,
-                "loss_det": loss_det,
-                "loss_det_warp": loss_det_warp,
                 "positive_dist": positive_dist,
                 "negative_dist": negative_dist,
             }
@@ -571,7 +540,7 @@ class TrainModelFrontend:
 
         return loss.item()
 
-    def saveModel(self):
+    def _save(self):
         """
         # save checkpoint for resuming training
         :return:
@@ -580,7 +549,8 @@ class TrainModelFrontend:
         save_checkpoint(
             self.save_path,
             {
-                "n_iter": self.n_iter + 1,
+                "epoch": self._epoch,
+                "n_iter": self.n_iter,
                 "model_state_dict": model_state_dict,
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "loss": self.loss,

@@ -7,14 +7,10 @@ import torch.optim
 import torch.utils.data
 
 from loguru import logger
-from pathlib import Path
-
-from ultrapoint.utils.loader import modelLoader, pretrainedLoader
 from ultrapoint.trainers.train_model_frontend import TrainModelFrontend
 
 
 class TrainModelSubpixel(TrainModelFrontend):
-
     default_config = {
         "train_iter": 170000,
         "save_interval": 2000,
@@ -30,47 +26,6 @@ class TrainModelSubpixel(TrainModelFrontend):
         self.max_iter = config["train_iter"]
         self._train = True
         self._eval = True
-
-    def print(self):
-        print("hello")
-
-    def loadModel(self):
-        ###### check!
-        model = self.config["model"]["name"]
-        params = self.config["model"]["params"]
-        logger.info(f"Model: {model}")
-        net = modelLoader(model=model, **params).to(self.device)
-        # net.init_
-        logging.info("=> setting adam solver")
-        # import torch.optim as optim
-        # optimizer = optim.Adam(net.parameters(), lr=self.config['model']['learning_rate'],
-        # betas=(0.9, 0.999))
-        optimizer = self.adamOptim(net, lr=self.config["model"]["learning_rate"])
-
-        n_iter = 0
-        ## load pretrained
-        if self.config["retrain"] == True:
-            logging.info("New model")
-            pass
-        else:
-            path = self.config["pretrained"]
-            mode = "" if path[:-3] == ".pth" else "full"
-            logging.info("load pretrained model from: %s", path)
-            net, optimizer, n_iter = pretrainedLoader(
-                net, optimizer, n_iter, path, mode=mode, full_path=True
-            )
-            logging.info("successfully load pretrained model from: %s", path)
-
-        def setIter(n_iter):
-            if self.config["reset_iter"]:
-                logging.info("reset iterations to 0")
-                n_iter = 0
-            return n_iter
-
-        self.net = net
-        self.optimizer = optimizer
-        self.n_iter = setIter(n_iter)
-        pass
 
     def train_val_sample(self, sample, n_iter=0, train=False):
         task = "train" if train else "val"

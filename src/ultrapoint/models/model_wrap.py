@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.utils.data
 
 from loguru import logger
+from ultrapoint.models.models_fabric import ModelsFabric
 from src.ultrapoint.utils.utils import flattenDetection
 
 
@@ -55,7 +56,6 @@ class SuperPointFrontend_torch(object):
         trained=False,
         device="cpu",
         grad=False,
-        load=True,
     ):
         self.config = config
 
@@ -77,41 +77,13 @@ class SuperPointFrontend_torch(object):
         if self.config["model"]["subpixel"]["enable"]:
             self.subpixel = True
 
-        if load:
-            self.loadModel(weights_path)
+        self.net = ModelsFabric.create(
+            model_name=self.config["model"]["name"],
+            state=torch.load(config["pretrained"])["model_state_dict"],
+            **self.config["model"]["params"],
+        ).to(self.device)
 
-    def loadModel(self, weights_path):
-        if weights_path[-4:] == ".tar":
-            trained = True
-
-        if trained:
-            model = self.config["model"]["name"]
-            params = self.config["model"]["params"]
-            logger.info(f"Using {model} model")
-
-            from src.ultrapoint.utils.loader import modelLoader
-
-            self.net = modelLoader(model=model, **params)
-            checkpoint = torch.load(
-                weights_path,
-                map_location=lambda storage, loc: storage,
-                weights_only=False,
-            )
-            self.net.load_state_dict(checkpoint["model_state_dict"])
-        else:
-            from src.ultrapoint.models.SuperPointNet_pretrained import SuperPointNet
-
-            self.net = SuperPointNet()
-            self.net.load_state_dict(
-                torch.load(
-                    weights_path,
-                    map_location=lambda storage, loc: storage,
-                    weights_only=False,
-                )
-            )
-
-        self.net = self.net.to(self.device)
-        self.net_parallel()
+        self.net = nn.DataParallel(self.net)
         self.net.eval()
 
     def net_parallel(self):

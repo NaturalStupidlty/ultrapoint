@@ -1,13 +1,9 @@
-"""latest version of SuperpointNet. Use it!
-
-"""
-
 import torch
+
 from torch.nn import BatchNorm2d
 from src.ultrapoint.models.unet_parts import Down, InConv
 
 
-# from models.SubpixelNet import SubpixelNet
 class SuperPointNet(torch.nn.Module):
     """Pytorch definition of SuperPoint Network."""
 
@@ -109,99 +105,3 @@ def get_matches(deses_SP):
         f(deses_SP[0]).T, f(deses_SP[1]).T, nn_thresh=1.2
     )
     return matching_mask
-
-    # print("matching_mask: ", matching_mask.shape)
-    # f_mask = lambda pts, maks: pts[]
-    # pts_m = []
-    # pts_m_res = []
-    # for i in range(2):
-    #     idx = xs_SP[i][matching_mask[i, :].astype(int), :]
-    #     res = reses_SP[i][matching_mask[i, :].astype(int), :]
-    #     print("idx: ", idx.shape)
-    #     print("res: ", idx.shape)
-    #     pts_m.append(idx)
-    #     pts_m_res.append(res)
-    #     pass
-
-    # pts_m = torch.cat((pts_m[0], pts_m[1]), dim=1)
-    # matches_test = toNumpy(pts_m)
-    # print("pts_m: ", pts_m.shape)
-
-    # pts_m_res = torch.cat((pts_m_res[0], pts_m_res[1]), dim=1)
-    # # pts_m_res = toNumpy(pts_m_res)
-    # print("pts_m_res: ", pts_m_res.shape)
-    # # print("pts_m_res: ", pts_m_res)
-
-    # pts_idx_res = torch.cat((pts_m, pts_m_res), dim=1)
-    # print("pts_idx_res: ", pts_idx_res.shape)
-
-
-def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SuperPointNet()
-    model = model.to(device)
-
-    # check keras-like model summary using torchsummary
-    from torchsummary import summary
-
-    summary(model, input_size=(1, 240, 320))
-
-    ## test
-    image = torch.zeros((2, 1, 120, 160))
-    outs = model(image.to(device))
-    print("outs: ", list(outs))
-
-    from src.ultrapoint.utils.logging import log_dict_attr
-
-    log_dict_attr(outs, "shape")
-
-    from src.ultrapoint.models.model_utils import SuperPointNet_process
-
-    params = {
-        "out_num_points": 500,
-        "patch_size": 5,
-        "device": device,
-        "nms_dist": 4,
-        "conf_thresh": 0.015,
-    }
-
-    sp_processer = SuperPointNet_process(**params)
-    outs = model.process_output(sp_processer)
-    print("outs: ", list(outs))
-    log_dict_attr(outs, "shape")
-
-    # timer
-    import time
-    from tqdm import tqdm
-
-    iter_max = 50
-
-    start = time.time()
-    print("Start timer!")
-    for i in tqdm(range(iter_max)):
-        outs = model(image.to(device))
-    end = time.time()
-    print("forward only: ", iter_max / (end - start), " iter/s")
-
-    start = time.time()
-    print("Start timer!")
-    xs_SP, deses_SP, reses_SP = [], [], []
-    for i in tqdm(range(iter_max)):
-        outs = model(image.to(device))
-        outs = model.process_output(sp_processer)
-        xs_SP.append(outs["pts_int"].squeeze())
-        deses_SP.append(outs["pts_desc"].squeeze())
-        reses_SP.append(outs["pts_offset"].squeeze())
-    end = time.time()
-    print("forward + process output: ", iter_max / (end - start), " iter/s")
-
-    start = time.time()
-    print("Start timer!")
-    for i in tqdm(range(len(xs_SP))):
-        get_matches([deses_SP[i][0], deses_SP[i][1]])
-    end = time.time()
-    print("nn matches: ", iter_max / (end - start), " iters/s")
-
-
-if __name__ == "__main__":
-    main()

@@ -84,10 +84,10 @@ def extract_patches(label_idx, image, patch_size=7):
     patches = _roi_pool(image, rois, patch_size=patch_size)
     return patches
 
-# from utils.losses import points_to_4d
+
 def points_to_4d(points):
     """
-    input: 
+    input:
         points: tensor [N, 2] check(y, x)
     """
     num_of_points = points.shape[0]
@@ -95,7 +95,7 @@ def points_to_4d(points):
     points = torch.cat((cols, cols, points.float()), dim=1)
     return points
 
-# from utils.losses import soft_argmax_2d
+
 def soft_argmax_2d(patches, normalized_coordinates=True):
     """
     params:
@@ -109,54 +109,12 @@ def soft_argmax_2d(patches, normalized_coordinates=True):
     coords = m(patches)  # 1x4x2
     return coords
 
-## log on patches
-# from utils.losses import do_log
+
 def do_log(patches):
     patches[patches<0] = 1e-6
     patches_log = torch.log(patches)
     return patches_log
 
-# from utils.losses import subpixel_loss
-def subpixel_loss(labels_2D, labels_res, pred_heatmap, patch_size=7):
-    """
-    input:
-        (tensor should be in GPU)
-        labels_2D: tensor [batch, 1, H, W]
-        labels_res: tensor [batch, 2, H, W]
-        pred_heatmap: tensor [batch, 1, H, W]
-
-    return:
-        loss: sum of all losses
-    """
-
-    
-    # soft argmax
-    def _soft_argmax(patches):
-        from src.ultrapoint.models import SubpixelNet as subpixNet
-        dxdy = subpixNet.soft_argmax_2d(patches) # tensor [B, N, patch, patch]
-        dxdy = dxdy.squeeze(1) # tensor [N, 2]
-        return dxdy
-   
-    points = labels_2D[...].nonzero()
-    num_points = points.shape[0]
-    if num_points == 0:
-        return 0
-
-    labels_res = labels_res.transpose(1,2).transpose(2,3).unsqueeze(1)
-    rois = pts_to_bbox(points[:,2:], patch_size)
-    # filter out??
-    rois = torch.cat((points[:,:1], rois), dim=1)
-    points_res = labels_res[points[:,0],points[:,1],points[:,2],points[:,3],:]  # tensor [N, 2]
-
-    patches = _roi_pool(pred_heatmap, rois, patch_size=patch_size)
-    # get argsoft max
-    dxdy = _soft_argmax(patches)
-
-    loss = (points_res - dxdy)
-    loss = torch.norm(loss, p=2, dim=-1)
-    loss = loss.sum()/num_points
-    # print("loss: ", loss)
-    return loss
 
 def subpixel_loss_no_argmax(labels_2D, labels_res, pred_heatmap, **options):
     # extract points

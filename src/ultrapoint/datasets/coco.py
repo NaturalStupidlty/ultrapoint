@@ -37,7 +37,7 @@ class Coco(Dataset):
         self.enable_photo_val = False
 
         self.cell_size = 8
-        self.sizer = self.config.get("preprocessing", {}).get("resize", None)
+        self.resize = self.config.get("preprocessing", {}).get("resize", None)
         self.gaussian_label = self.config.get("gaussian_label", {}).get("enable", False)
 
         self.sample_homography = sample_homography
@@ -84,11 +84,13 @@ class Coco(Dataset):
             input_image = cv2.imread(path)
             input_image = cv2.resize(
                 input_image,
-                (self.sizer[1], self.sizer[0]),
+                (self.resize[1], self.resize[0]),
                 interpolation=cv2.INTER_AREA,
             )
 
-            return cv2.cvtColor(input_image, cv2.COLOR_RGB2GRAY).astype("float32") / 255.0
+            return (
+                cv2.cvtColor(input_image, cv2.COLOR_RGB2GRAY).astype("float32") / 255.0
+            )
 
         def imgPhotometric(img):
             """

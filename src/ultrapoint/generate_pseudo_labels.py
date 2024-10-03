@@ -48,29 +48,21 @@ def homography_adaptation(config):
     nn_thresh = config["model"]["nn_thresh"]
     conf_thresh = config["model"]["detection_threshold"]
     iterations = config["data"]["homography_adaptation"]["num"]
+    logger.info(f"Homography adaptation iterations: {iterations}")
 
     test_loader = DataLoadersFactory.create(
         config, dataset_name=config["data"]["dataset"], mode="test"
     )
 
-    path = config["pretrained"]
-    try:
-        logger.info(f"Loading pre-trained network {path}")
-        superpoint_wrapper = SuperPointFrontend_torch(
-            config=config,
-            weights_path=path,
-            nms_dist=config["model"]["nms"],
-            conf_thresh=conf_thresh,
-            nn_thresh=nn_thresh,
-            cuda=False,
-            device=device,
-        )
-        logger.info("Successfully loaded pre-trained network.")
-    except Exception as e:
-        logger.error(f"Failed to load model: {path} - {e}")
-        raise
-
-    logger.info(f"Homography adaptation iterations: {iterations}")
+    superpoint_wrapper = SuperPointFrontend_torch(
+        config=config,
+        weights_path=config["pretrained"],
+        nms_dist=config["model"]["nms"],
+        conf_thresh=conf_thresh,
+        nn_thresh=nn_thresh,
+        cuda=False,
+        device=device,
+    )
 
     for sample in tqdm(test_loader, desc="Generating pseudo labels"):
         try:

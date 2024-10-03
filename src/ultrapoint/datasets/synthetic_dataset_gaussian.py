@@ -28,16 +28,17 @@ def load_as_float(path):
 
 
 class SyntheticDatasetGaussian(data.Dataset):
+    # TODO: add primitives configuration
     drawing_primitives = [
         "draw_lines",
-        "draw_polygon",
-        "draw_multiple_polygons",
-        "draw_ellipses",
-        "draw_star",
-        "draw_checkerboard",
-        "draw_stripes",
-        "draw_cube",
-        "gaussian_noise",
+        # "draw_polygon",
+        # "draw_multiple_polygons",
+        # "draw_ellipses",
+        # "draw_star",
+        # "draw_checkerboard",
+        # "draw_stripes",
+        # "draw_cube",
+        # "gaussian_noise",
     ]
     logger.info(drawing_primitives)
 
@@ -338,7 +339,6 @@ class SyntheticDatasetGaussian(data.Dataset):
             pnts_post = pnts
             # pnts_for_gaussian = pnts
         else:
-            # print('>>> Homograpy aug enabled for %s.'%self.action)
             # img_warp = img
             from src.ultrapoint.utils.utils import (
                 homography_scaling_torch as homography_scaling,
@@ -403,8 +403,6 @@ class SyntheticDatasetGaussian(data.Dataset):
             labels_gaussian = self.gaussian_blur(squeeze_to_numpy(labels_2D_bi))
             labels_gaussian = np_to_tensor(labels_gaussian, H, W)
             sample["labels_2D_gaussian"] = labels_gaussian
-
-            # add residua
 
         sample.update({"labels_res": labels_res})
 

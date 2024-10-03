@@ -124,15 +124,6 @@ def save_checkpoint(save_path, net_state, epoch, filename='checkpoint.pth.tar'):
     print("save checkpoint to ", filename)
     pass
 
-def load_checkpoint(load_path, filename='checkpoint.pth.tar'):
-    file_prefix = ['superPointNet']
-    filename = '{}__{}'.format(file_prefix[0], filename)
-    # torch.save(net_state, save_path)
-    checkpoint = torch.load(load_path/filename)
-    print("load checkpoint from ", filename)
-    return checkpoint
-    pass
-
 
 def saveLoss(filename, iter, loss, task='train', **options):
     # save_file = save_output / "export.txt"
