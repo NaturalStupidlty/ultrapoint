@@ -33,18 +33,16 @@ class Tum(Coco):
 
     def __init__(
         self,
-        export=False,
-        transform=None,
-        task="train",
-        seed=0,
+        transforms=None,
+        mode="train",
         sequence_length=1,
         **config,
     ):
         # Update config
         self.config = {**self.default_config, **config}
 
-        self.transforms = transform
-        self.action = "train" if task == "train" else "val"
+        self.transforms = transforms
+        self.action = "train" if mode == "train" else "val"
 
         # get files
         self.root = Path(self.config["root"])
@@ -56,7 +54,7 @@ class Tum(Coco):
         )
         scene_list_path = (
             self.root_split_txt / "train.txt"
-            if task == "train"
+            if mode == "train"
             else self.root_split_txt / "val.txt"
         )
         self.scenes = [
@@ -64,15 +62,14 @@ class Tum(Coco):
         ]
         if self.config["labels"]:
             self.labels = True
-            self.labels_path = Path(self.config["labels"], task)
-            print("load labels from: ", self.config["labels"] + "/" + task)
+            self.labels_path = Path(self.config["labels"], mode)
+            print("load labels from: ", self.config["labels"] + "/" + mode)
         else:
             self.labels = False
 
         self.crawl_folders(sequence_length)
 
-        # other variables
-        self.init_var()
+        super().__init__(transforms=transforms, mode=mode, **config)
 
     def crawl_folders(self, sequence_length):
         sequence_set = []

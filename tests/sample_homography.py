@@ -56,7 +56,7 @@ def test_sample_homography():
     if test_corner_def:
         corner_img = np.array([(-1, -1), (-1, 1), (1, 1), (1, -1)])
         from src.ultrapoint.utils.homographies import (
-            sample_homography_np as sample_homography,
+            sample_homography as sample_homography,
         )
 
         boundary = 2

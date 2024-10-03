@@ -33,9 +33,9 @@ class DataLoadersFactory:
 
         dataset_module = DataLoadersFactory.SUPPORTED_DATASETS[dataset_name]
         dataset = dataset_module(
-            transform=transforms.Compose([transforms.ToTensor()]),
-            task=mode,
             **config["data"],
+            transforms=transforms.Compose([transforms.ToTensor()]),
+            task=mode,
         )
 
         return DataLoader(

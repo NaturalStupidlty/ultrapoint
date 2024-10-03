@@ -1,56 +1,44 @@
-import torch
 import cv2
 import numpy
+import torch
+import torchvision
 
 from pathlib import Path
 from loguru import logger
 from torch.utils.data import Dataset
 
+from ultrapoint.utils.homographies import sample_homography
+from ultrapoint.utils.utils import compute_valid_mask
+from ultrapoint.utils.photometric import (
+    ImgAugTransform,
+    customizedTransform,
+)
+from ultrapoint.utils.utils import (
+    inv_warp_image,
+    inv_warp_image_batch,
+    warp_points,
+)
+from ultrapoint.datasets.data_tools import np_to_tensor
+from ultrapoint.datasets.data_tools import warpLabels
+
 
 class Coco(Dataset):
-    def __init__(self, export=False, transform=None, task="train", **config):
+    def __init__(
+        self, transforms: torchvision.transforms.Compose, mode: str = "train", **config
+    ):
         self.config = config
-        self.transforms = transform
-        self.action = "train" if task == "train" else "val"
+        self.transforms = transforms
+        self.action = mode
+        self.samples = self.load_samples(config)
 
-        # get files
-        image_paths = list(Path(config["path"]).rglob("*.jpg"))
-        names = [p.stem for p in image_paths]
-        image_paths = [str(p) for p in image_paths]
-        files = {"image_paths": image_paths, "names": names}
+        self.enable_photo_train = self.config["augmentation"]["photometric"]["enable"]
+        self.enable_homo_train = self.config["augmentation"]["homographic"]["enable"]
+        self.enable_homo_val = False
+        self.enable_photo_val = False
 
-        self.samples = []
-        if self.config["labels"]:
-            logger.info("Loading labels from: ", self.config["labels"])
-            for img, name in zip(files["image_paths"], files["names"]):
-                p = Path(self.config["labels"], f"{name}.npz")
-                if p.exists():
-                    sample = {"image": img, "name": name, "points": str(p)}
-                    self.samples.append(sample)
-        else:
-            self.samples = [
-                {"image": img, "name": name}
-                for img, name in zip(files["image_paths"], files["names"])
-            ]
-
-        self.init_var()
-
-    def init_var(self):
-        torch.set_default_dtype(torch.float32)
-
-        from src.ultrapoint.utils.homographies import (
-            sample_homography_np as sample_homography,
-        )
-        from src.ultrapoint.utils.utils import compute_valid_mask
-        from src.ultrapoint.utils.photometric import (
-            ImgAugTransform,
-            customizedTransform,
-        )
-        from src.ultrapoint.utils.utils import (
-            inv_warp_image,
-            inv_warp_image_batch,
-            warp_points,
-        )
+        self.cell_size = 8
+        self.sizer = self.config.get("preprocessing", {}).get("resize", None)
+        self.gaussian_label = self.config.get("gaussian_label", {}).get("enable", False)
 
         self.sample_homography = sample_homography
         self.inv_warp_image = inv_warp_image
@@ -60,114 +48,47 @@ class Coco(Dataset):
         self.customizedTransform = customizedTransform
         self.warp_points = warp_points
 
-        self.enable_photo_train = self.config["augmentation"]["photometric"]["enable"]
-        self.enable_homo_train = self.config["augmentation"]["homographic"]["enable"]
+    @staticmethod
+    def load_samples(config: dict):
+        image_paths = list(Path(config["path"]).rglob("*.jpg"))
+        names = [p.stem for p in image_paths]
+        image_paths = [str(p) for p in image_paths]
 
-        self.enable_homo_val = False
-        self.enable_photo_val = False
+        if config.get("labels"):
+            logger.info(f"Loading labels from: {config['labels']}")
+            return [
+                {
+                    "image": img,
+                    "name": name,
+                    "points": str(Path(config["labels"], f"{name}.npz")),
+                }
+                for img, name in zip(image_paths, names)
+                if Path(config["labels"], f"{name}.npz").exists()
+            ]
+        else:
+            return [
+                {"image": img, "name": name} for img, name in zip(image_paths, names)
+            ]
 
-        self.cell_size = 8
-        if self.config["preprocessing"]["resize"]:
-            self.sizer = self.config["preprocessing"]["resize"]
-
-        self.gaussian_label = False
-        if self.config["gaussian_label"]["enable"]:
-            self.gaussian_label = True
-            y, x = self.sizer
-            # self.params_transform = {'crop_size_y': y, 'crop_size_x': x, 'stride': 1, 'sigma': self.config['gaussian_label']['sigma']}
-        pass
-
-    def putGaussianMaps(self, center, accumulate_confid_map):
-        crop_size_y = self.params_transform["crop_size_y"]
-        crop_size_x = self.params_transform["crop_size_x"]
-        stride = self.params_transform["stride"]
-        sigma = self.params_transform["sigma"]
-
-        grid_y = crop_size_y / stride
-        grid_x = crop_size_x / stride
-        start = stride / 2.0 - 0.5
-        xx, yy = numpy.meshgrid(range(int(grid_x)), range(int(grid_y)))
-        xx = xx * stride + start
-        yy = yy * stride + start
-        d2 = (xx - center[0]) ** 2 + (yy - center[1]) ** 2
-        exponent = d2 / 2.0 / sigma / sigma
-        mask = exponent <= sigma
-        cofid_map = numpy.exp(-exponent)
-        cofid_map = numpy.multiply(mask, cofid_map)
-        accumulate_confid_map += cofid_map
-        accumulate_confid_map[accumulate_confid_map > 1.0] = 1.0
-        return accumulate_confid_map
-
-    def get_img_from_sample(self, sample):
-        return sample["image"]  # path
-
-    def format_sample(self, sample):
-        return sample
+    def __len__(self):
+        return len(self.samples)
 
     def __getitem__(self, index):
         """
-
         :param index:
         :return:
             image: tensor (H, W, channel=1)
         """
 
         def _read_image(path):
-            cell = 8
             input_image = cv2.imread(path)
-            # print(f"path: {path}, image: {image}")
-            # print(f"path: {path}, image: {input_image.shape}")
             input_image = cv2.resize(
                 input_image,
                 (self.sizer[1], self.sizer[0]),
                 interpolation=cv2.INTER_AREA,
             )
-            H, W = input_image.shape[0], input_image.shape[1]
-            # H = H//cell*cell
-            # W = W//cell*cell
-            # input_image = input_image[:H,:W,:]
-            input_image = cv2.cvtColor(input_image, cv2.COLOR_RGB2GRAY)
 
-            input_image = input_image.astype("float32") / 255.0
-            return input_image
-
-        def _preprocess(image):
-            if self.transforms is not None:
-                image = self.transforms(image)
-            return image
-
-        def get_labels_gaussian(pnts, subpixel=False):
-            heatmaps = numpy.zeros((H, W))
-            if subpixel:
-                print("pnt: ", pnts.shape)
-                for center in pnts:
-                    heatmaps = self.putGaussianMaps(center, heatmaps)
-            else:
-                aug_par = {"photometric": {}}
-                aug_par["photometric"]["enable"] = True
-                aug_par["photometric"]["params"] = self.config["gaussian_label"][
-                    "params"
-                ]
-                augmentation = self.ImgAugTransform(**aug_par)
-                # get label_2D
-                labels = points_to_2D(pnts, H, W)
-                labels = labels[:, :, numpy.newaxis]
-                heatmaps = augmentation(labels)
-
-            # warped_labels_gaussian = torch.tensor(heatmaps).float().view(-1, H, W)
-            warped_labels_gaussian = (
-                torch.tensor(heatmaps).type(torch.FloatTensor).view(-1, H, W)
-            )
-            warped_labels_gaussian[warped_labels_gaussian > 1.0] = 1.0
-            return warped_labels_gaussian
-
-        from src.ultrapoint.datasets.data_tools import np_to_tensor
-
-        # def np_to_tensor(img, H, W):
-        #     img = torch.tensor(img).type(torch.FloatTensor).view(-1, H, W)
-        #     return img
-
-        from src.ultrapoint.datasets.data_tools import warpLabels
+            return cv2.cvtColor(input_image, cv2.COLOR_RGB2GRAY).astype("float32") / 255.0
 
         def imgPhotometric(img):
             """
@@ -194,7 +115,6 @@ class Coco(Dataset):
         from numpy.linalg import inv
 
         sample = self.samples[index]
-        sample = self.format_sample(sample)
         input = {}
         input.update(sample)
         # image
@@ -272,9 +192,6 @@ class Coco(Dataset):
 
         if self.config["labels"]:
             pnts = numpy.load(sample["points"])["pts"]
-            # pnts = pnts.astype(int)
-            # labels = np.zeros_like(img_o)
-            # labels[pnts[:, 1], pnts[:, 0]] = 1
             labels = points_to_2D(pnts, H, W)
             labels_2D = to_floatTensor(labels[numpy.newaxis, :, :])
             input.update({"labels_2D": labels_2D})
@@ -370,8 +287,6 @@ class Coco(Dataset):
                 warped_res = warped_res.transpose(1, 2).transpose(0, 1)
                 # print("warped_res: ", warped_res.shape)
                 if self.gaussian_label:
-                    # print("do gaussian labels!")
-                    # warped_labels_gaussian = get_labels_gaussian(warped_set['warped_pnts'].numpy())
                     from ultrapoint.utils.torch_helpers import squeeze_to_numpy
 
                     # warped_labels_bi = self.inv_warp_image(labels_2D.squeeze(), inv_homography, mode='nearest').unsqueeze(0) # bilinear, nearest
@@ -402,12 +317,7 @@ class Coco(Dataset):
                     {"homographies": homography, "inv_homographies": inv_homography}
                 )
 
-            # labels = self.labels2Dto3D(self.cell_size, labels)
-            # labels = torch.from_numpy(labels[np.newaxis,:,:])
-            # input.update({'labels': labels})
-
             if self.gaussian_label:
-                # warped_labels_gaussian = get_labels_gaussian(pnts)
                 labels_gaussian = self.gaussian_blur(squeeze_to_numpy(labels_2D))
                 labels_gaussian = np_to_tensor(labels_gaussian, H, W)
                 input["labels_2D_gaussian"] = labels_gaussian
@@ -416,9 +326,6 @@ class Coco(Dataset):
         input.update({"name": name, "scene_name": "./"})  # dummy scene name
 
         return input
-
-    def __len__(self):
-        return len(self.samples)
 
     ## util functions
     def gaussian_blur(self, image):

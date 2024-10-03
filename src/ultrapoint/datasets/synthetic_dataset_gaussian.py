@@ -109,7 +109,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         **config,
     ):
         from src.ultrapoint.utils.homographies import (
-            sample_homography_np as sample_homography,
+            sample_homography as sample_homography,
         )
         from src.ultrapoint.utils.photometric import (
             ImgAugTransform,

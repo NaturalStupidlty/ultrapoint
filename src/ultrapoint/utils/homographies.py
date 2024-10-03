@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 
-def sample_homography_np(
+def sample_homography(
         shape, shift=0, perspective=True, scaling=True, rotation=True, translation=True,
         n_scales=5, n_angles=25, scaling_amplitude=0.1, perspective_amplitude_x=0.1,
         perspective_amplitude_y=0.1, patch_ratio=0.5, max_angle=pi/2,
