@@ -17,7 +17,6 @@ import tarfile
 import random
 from src.ultrapoint.datasets import synthetic_dataset
 from tqdm import tqdm
-import os
 import cv2
 import shutil
 
@@ -29,67 +28,17 @@ def load_as_float(path):
 
 
 class SyntheticDatasetGaussian(data.Dataset):
-    # TODO: move to yaml
-    default_config = {
-        "primitives": "all",
-        "truncate": {},
-        "validation_size": -1,
-        "test_size": -1,
-        "on-the-fly": False,
-        "cache_in_memory": False,
-        "suffix": None,
-        "add_augmentation_to_test_set": False,
-        "num_parallel_calls": 10,
-        "generation": {
-            "split_sizes": {"training": 10000, "validation": 200, "test": 500},
-            "image_size": [960, 1280],
-            "random_seed": 0,
-            "params": {
-                "generate_background": {
-                    "min_kernel_size": 150,
-                    "max_kernel_size": 500,
-                    "min_rad_ratio": 0.02,
-                    "max_rad_ratio": 0.031,
-                },
-                "draw_stripes": {"transform_params": (0.1, 0.1)},
-                "draw_multiple_polygons": {"kernel_boundaries": (50, 100)},
-            },
-        },
-        "preprocessing": {
-            "resize": [240, 320],
-            "blur_size": 11,
-        },
-        "augmentation": {
-            "photometric": {
-                "enable": False,
-                "primitives": "all",
-                "params": {},
-                "random_order": True,
-            },
-            "homographic": {
-                "enable": False,
-                "params": {},
-                "valid_border_margin": 0,
-            },
-        },
-    }
-    if os.getenv("DEBUG") == "True":
-        logger.info("DEBUG mode")
-        drawing_primitives = [
-            "draw_checkerboard",
-        ]
-    else:
-        drawing_primitives = [
-            "draw_lines",
-            "draw_polygon",
-            "draw_multiple_polygons",
-            "draw_ellipses",
-            "draw_star",
-            "draw_checkerboard",
-            "draw_stripes",
-            "draw_cube",
-            "gaussian_noise",
-        ]
+    drawing_primitives = [
+        "draw_lines",
+        "draw_polygon",
+        "draw_multiple_polygons",
+        "draw_ellipses",
+        "draw_star",
+        "draw_checkerboard",
+        "draw_stripes",
+        "draw_cube",
+        "gaussian_noise",
+    ]
     logger.info(drawing_primitives)
 
     def dump_primitive_data(self, primitive, tar_path, config):
@@ -175,7 +124,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         random.seed(seed)
 
         # Update config
-        self.config = {**self.default_config, **config}
+        self.config = config
         self._data_path = config.get("path", "/tmp")
         self.transform = transform
         self.sample_homography = sample_homography
@@ -528,35 +477,6 @@ class SyntheticDatasetGaussian(data.Dataset):
             sample.update(
                 {"homographies": homography, "inv_homographies": inv_homography}
             )
-
-        # labels = self.labels2Dto3D(self.cell_size, labels)
-        # labels = torch.from_numpy(labels[np.newaxis,:,:])
-        # input.update({'labels': labels})
-
-        ### code for warped image
-
-        # if self.config['gaussian_label']['enable']:
-        #     heatmaps = np.zeros((H, W))
-        #     # for center in pnts_int.numpy():
-        #     for center in pnts[:, [1, 0]].numpy():
-        #         # print("put points: ", center)
-        #         heatmaps = self.putGaussianMaps(center, heatmaps)
-        #     # import matplotlib.pyplot as plt
-        #     # plt.figure(figsize=(5, 10))
-        #     # plt.subplot(211)
-        #     # plt.imshow(heatmaps)
-        #     # plt.colorbar()
-        #     # plt.subplot(212)
-        #     # plt.imshow(np.squeeze(warped_labels.numpy()))
-        #     # plt.show()
-        #     # import time
-        #     # time.sleep(500)
-        #     # results = self.pool.map(self.putGaussianMaps_par, warped_pnts.numpy())
-
-        #     warped_labels_gaussian = torch.from_numpy(heatmaps).view(-1, H, W)
-        #     warped_labels_gaussian[warped_labels_gaussian>1.] = 1.
-
-        #     sample['labels_2D_gaussian'] = warped_labels_gaussian
 
         if self.getPts:
             sample.update({"pts": pnts})

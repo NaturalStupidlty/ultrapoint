@@ -94,7 +94,3 @@ def warpLabels(pnts, H, W, homography, bilinear=False):
 def np_to_tensor(img, H, W):
     img = torch.tensor(img).type(torch.FloatTensor).view(-1, H, W)
     return img
-
-
-if __name__ == "__main__":
-    main()

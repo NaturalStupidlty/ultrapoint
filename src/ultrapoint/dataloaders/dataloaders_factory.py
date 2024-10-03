@@ -1,6 +1,7 @@
 import torch
 import numpy
 import torchvision.transforms as transforms
+from torch.utils.data import DataLoader as DataLoader
 
 from loguru import logger
 from ultrapoint.datasets.coco import Coco
@@ -37,7 +38,7 @@ class DataLoadersFactory:
             **config["data"],
         )
 
-        return torch.utils.data.DataLoader(
+        return DataLoader(
             dataset,
             batch_size=batch_size,
             shuffle=True,

@@ -185,8 +185,3 @@ class Kitti_inh(Coco):
             sample_fix["scene_name"] = str(sample["scene_name"])
 
         return sample_fix
-
-
-if __name__ == "__main__":
-    # main()
-    pass

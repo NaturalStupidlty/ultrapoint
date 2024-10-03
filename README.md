@@ -1,18 +1,3 @@
-# pytorch-superpoint
-
-This is a PyTorch implementation of  "SuperPoint: Self-Supervised Interest Point Detection and Description." Daniel DeTone, Tomasz Malisiewicz, Andrew Rabinovich. [ArXiv 2018](https://arxiv.org/abs/1712.07629).
-This code is partially based on the tensorflow implementation
-https://github.com/rpautrat/SuperPoint.
-
-Please be generous to star this repo if it helps your research.
-This repo is a bi-product of our paper [deepFEPE(IROS 2020)](https://github.com/eric-yyjau/pytorch-deepFEPE.git).
-
-## Differences between our implementation and original paper
-- *Descriptor loss*: We tested descriptor loss using different methods, including dense method 
-(as paper but slightly different) and sparse method. We notice sparse loss can converge more efficiently with similar
-performance. The default setting here is sparse method.
-
-
 ## Installation
 ```
 conda create --name superpoint python=3.8
@@ -20,11 +5,7 @@ conda activate superpoint
 pip install -r requirements.txt
 ```
 
-### Path setting
-- paths for datasets ($DATA_DIR), logs are set in `.env`
-
-### Dataset
-Datasets should be downloaded into $DATA_DIR. The Synthetic Shapes dataset will also be generated there. 
+### Datasets
 
 - MS-COCO 2014 
     - [MS-COCO 2014 link](http://cocodataset.org/#download)
@@ -40,14 +21,10 @@ Datasets should be downloaded into $DATA_DIR. The Synthetic Shapes dataset will 
 python train.py ../assets/configs/train/magicpoint_synthetic.yaml magicpoint_synth --eval
 tensorboard --logdir assets/logs/magicpoint_synth_2024-09-27_10:44:24
 ```
-you don't need to download synthetic data. You will generate it when first running it.
-Synthetic data is exported in `./datasets`. You can change the setting in `.env`.
+You don't need to download synthetic data. You will generate it when first running it.
 
-### 2) Generating pseudo labels on MS-COCO / kitti
+### 2) Generating pseudo labels
 This is the step of homography adaptation for joint training.
-- make sure the pretrained model in config file is correct
-- make sure COCO dataset is in '$DATA_DIR' (defined in .env)
-- you can export hpatches or coco dataset by editing the 'task' in config file
 
 #### COCO
 ```
@@ -58,31 +35,17 @@ python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicp
 python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicpoint_kitti_export.yaml
 ```
 
-### 3) Training Superpoint on MS-COCO/ KITTI
-You need pseudo ground truth labels from step 2). Then, as usual, you need to set config file before training.
-- config file
-  - root: specify your labels root
-  - root_split_txt: where you put the train.txt/ val.txt split files (no need for COCO, needed for KITTI)
-  - labels: the exported labels from homography adaptation
-  - pretrained: specify the pretrained model (you can train from scratch)
-- 'eval': turn on the evaluation during training 
-
-#### General command
-```
-python train4.py <train task> <config file> <export folder> --eval
-```
+### 3) Training SuperPoint
+You need pseudo ground truth labels from step 2).
 
 #### COCO
 ```
-python train4.py train configs/superpoint_coco_train_heatmap.yaml superpoint_coco --eval --debug
+python train.py train configs/superpoint_coco_train_heatmap.yaml superpoint_coco --eval --debug
 ```
-#### kitti
+#### KITTI
 ```
-python train4.py train configs/superpoint_kitti_train_heatmap.yaml superpoint_kitti --eval --debug
+python train.py train configs/superpoint_kitti_train_heatmap.yaml superpoint_kitti --eval --debug
 ```
-
-- set your batch size (originally 1)
-- refer to: 'train_tutorial.md'
 
 ### 4) Export/ Evaluate the metrics on HPatches
 - Use pretrained model or specify your model in config file
