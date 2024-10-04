@@ -1,6 +1,16 @@
 data:
     dataset: 'SyntheticDatasetGaussian'
-    primitives: 'all'
+    primitives: [
+        "draw_lines",
+        "draw_polygon",
+        "draw_multiple_polygons",
+        "draw_ellipses",
+        "draw_star",
+        "draw_checkerboard",
+        "draw_stripes",
+        "draw_cube",
+        "gaussian_noise"
+    ]
     path: '../assets/datasets/'
     suffix: 'v6'
     truncate: {draw_ellipses: 0.3, draw_stripes: 0.2, gaussian_noise: 0.1}

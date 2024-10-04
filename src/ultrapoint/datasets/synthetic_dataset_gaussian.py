@@ -13,6 +13,7 @@ import torch.utils.data as data
 import torch
 import numpy as np
 
+from typing import Union, List
 from imageio import imread
 from tqdm import tqdm
 from loguru import logger
@@ -35,19 +36,17 @@ def load_as_float(path):
 
 
 class SyntheticDatasetGaussian(data.Dataset):
-    # TODO: add primitives configuration
-    drawing_primitives = [
+    DRAWING_PRIMITIVES = [
         "draw_lines",
-        # "draw_polygon",
-        # "draw_multiple_polygons",
-        # "draw_ellipses",
-        # "draw_star",
-        # "draw_checkerboard",
-        # "draw_stripes",
-        # "draw_cube",
-        # "gaussian_noise",
+        "draw_polygon",
+        "draw_multiple_polygons",
+        "draw_ellipses",
+        "draw_star",
+        "draw_checkerboard",
+        "draw_stripes",
+        "draw_cube",
+        "gaussian_noise",
     ]
-    logger.info(drawing_primitives)
 
     def __init__(
         self,
@@ -84,9 +83,8 @@ class SyntheticDatasetGaussian(data.Dataset):
         self.pool = multiprocessing.Pool(6)
 
         # Parse drawing primitives
-        primitives = self.parse_primitives(
-            config["primitives"], self.drawing_primitives
-        )
+        primitives = self.setup_primitives(config["primitives"])
+        logger.info(primitives)
 
         basepath = Path(
             self._data_path,
@@ -422,14 +420,11 @@ class SyntheticDatasetGaussian(data.Dataset):
         shutil.rmtree(temp_dir)
         logger.info(".tar file dumped to {}.".format(tar_path))
 
-    def parse_primitives(self, names, all_primitives):
-        p = (
-            all_primitives
-            if (names == "all")
-            else (names if isinstance(names, list) else [names])
-        )
-        assert set(p) <= set(all_primitives)
-        return p
+    def setup_primitives(self, names: Union[str, List[str]]):
+        if names == "all":
+            return self.DRAWING_PRIMITIVES
+
+        return [name for name in names if name in self.DRAWING_PRIMITIVES]
 
     def crawl_folders(self, splits):
         sequence_set = []
