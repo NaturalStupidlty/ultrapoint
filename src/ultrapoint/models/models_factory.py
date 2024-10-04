@@ -3,16 +3,16 @@ from loguru import logger
 from ultrapoint.models.super_point_net import SuperPointNet
 
 
-class ModelsFabric:
+class ModelsFactory:
     SUPPORTED_MODELS = {"SuperPointNet": SuperPointNet}
 
     @staticmethod
     def create(model_name: str, state=None, **kwargs):
         assert (
-            model_name in ModelsFabric.SUPPORTED_MODELS
+                model_name in ModelsFactory.SUPPORTED_MODELS
         ), f"Model {model_name} is not supported"
 
-        model = ModelsFabric.SUPPORTED_MODELS[model_name](**kwargs)
+        model = ModelsFactory.SUPPORTED_MODELS[model_name](**kwargs)
 
         if state is not None:
             try:

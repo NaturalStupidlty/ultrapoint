@@ -12,7 +12,7 @@ import torch.utils.data
 
 from loguru import logger
 from ultrapoint.utils.utils import precisionRecall_torch
-from ultrapoint.trainers.train_model_frontend import TrainModelFrontend
+from ultrapoint.trainers.trainer import Trainer
 
 
 def thd_img(img, thd=0.015):
@@ -34,7 +34,7 @@ def img_overlap(img_r, img_g, img_gray):  # img_b repeat
     return img
 
 
-class TrainModelHeatmap(TrainModelFrontend):
+class TrainerHeatmap(Trainer):
     """Wrapper around pytorch net to help with pre and post image processing."""
 
     """

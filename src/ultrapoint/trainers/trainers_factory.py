@@ -1,11 +1,11 @@
-from ultrapoint.trainers.train_model_subpixel import TrainModelSubpixel
-from ultrapoint.trainers.train_model_heatmap import TrainModelHeatmap
+from ultrapoint.trainers.trainer_subpixel import TrainerSubpixel
+from ultrapoint.trainers.trainer_heatmap import TrainerHeatmap
 
 
 class TrainersFactory:
     SUPPORTED_TRAINERS = {
-        "TrainModelSubpixel": TrainModelSubpixel,
-        "TrainModelHeatmap": TrainModelHeatmap,
+        "TrainModelSubpixel": TrainerSubpixel,
+        "TrainModelHeatmap": TrainerHeatmap,
     }
 
     @staticmethod

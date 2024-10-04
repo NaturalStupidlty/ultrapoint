@@ -132,7 +132,7 @@ model:
         enable: false
     other_settings: 'train 2d, gauss 0.5'
 
-trainer: 'TrainModelHeatmap'
+trainer: 'TrainerHeatmap'
 train_iter: 200000
 tensorboard_interval: 1000
 save_interval: 2000

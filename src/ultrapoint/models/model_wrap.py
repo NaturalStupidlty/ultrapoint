@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.utils.data
 
 from loguru import logger
-from ultrapoint.models.models_fabric import ModelsFabric
+from ultrapoint.models.models_factory import ModelsFactory
 from src.ultrapoint.utils.utils import flattenDetection
 
 
@@ -77,7 +77,7 @@ class SuperPointFrontend_torch(object):
         if self.config["model"]["subpixel"]["enable"]:
             self.subpixel = True
 
-        self.net = ModelsFabric.create(
+        self.net = ModelsFactory.create(
             model_name=self.config["model"]["name"],
             state=torch.load(config["pretrained"])["model_state_dict"],
             **self.config["model"]["params"],

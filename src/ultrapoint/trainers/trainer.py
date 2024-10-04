@@ -11,7 +11,7 @@ from typing import Union
 from tqdm import tqdm
 from loguru import logger
 from tensorboardX import SummaryWriter
-from ultrapoint.models.models_fabric import ModelsFabric
+from ultrapoint.models.models_factory import ModelsFactory
 from ultrapoint.utils.utils import (
     labels2Dto3D,
     flattenDetection,
@@ -54,7 +54,7 @@ def img_overlap(img_r, img_g, img_gray):  # img_b repeat
     return img
 
 
-class TrainModelFrontend:
+class Trainer:
     """
     This is the base class for training classes. Wrap pytorch net to help training process.
     """
@@ -156,7 +156,7 @@ class TrainModelFrontend:
         logger.info(f"Model: {self.config['model']['name']}")
         if self.config["pretrained"] is not None:
             checkpoint = torch.load(self.config["pretrained"])
-            self.net = ModelsFabric.create(
+            self.net = ModelsFactory.create(
                 model_name=self.config["model"]["name"],
                 state=checkpoint["model_state_dict"],
                 **self.config["model"]["params"],
@@ -169,7 +169,7 @@ class TrainModelFrontend:
 
         else:
             logger.info("Training model from scratch")
-            self.net = ModelsFabric.create(
+            self.net = ModelsFactory.create(
                 model_name=self.config["model"]["name"],
                 **self.config["model"]["params"],
             ).to(self.device)

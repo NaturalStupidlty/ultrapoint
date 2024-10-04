@@ -108,6 +108,6 @@ save_interval: 2000
 seed: 0
 tensorboard_interval: 200
 train_iter: 200000
-trainer: TrainModelHeatmap
+trainer: TrainerHeatmap
 validation_interval: 2000
 validation_size: 5

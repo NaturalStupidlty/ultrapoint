@@ -7,10 +7,10 @@ import torch.optim
 import torch.utils.data
 
 from loguru import logger
-from ultrapoint.trainers.train_model_frontend import TrainModelFrontend
+from ultrapoint.trainers.trainer import Trainer
 
 
-class TrainModelSubpixel(TrainModelFrontend):
+class TrainerSubpixel(Trainer):
     default_config = {
         "train_iter": 170000,
         "save_interval": 2000,
