@@ -4,8 +4,8 @@ from ultrapoint.trainers.trainer_heatmap import TrainerHeatmap
 
 class TrainersFactory:
     SUPPORTED_TRAINERS = {
-        "TrainModelSubpixel": TrainerSubpixel,
-        "TrainModelHeatmap": TrainerHeatmap,
+        "TrainerSubpixel": TrainerSubpixel,
+        "TrainerHeatmap": TrainerHeatmap,
     }
 
     @staticmethod

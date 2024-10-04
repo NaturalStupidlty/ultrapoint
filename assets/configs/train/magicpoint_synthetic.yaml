@@ -14,16 +14,13 @@ data:
     path: '../assets/datasets/'
     suffix: 'v6'
     truncate: {draw_ellipses: 0.3, draw_stripes: 0.2, gaussian_noise: 0.1}
-    cache_in_memory: true
-    on-the-fly: false
-    add_augmentation_to_test_set: false  # set to true to evaluate with noise
     gaussian_label:
         enable: false
         params:
             GaussianBlur: {sigma: 0.2}
     preprocessing:
         blur_size: 21
-        resize: [120, 160]
+        resize: [240, 320]
 
     generation:
         split_sizes:

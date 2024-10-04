@@ -38,24 +38,15 @@ class TrainerHeatmap(Trainer):
     """Wrapper around pytorch net to help with pre and post image processing."""
 
     """
-    * SuperPointFrontend_torch:
-    ** note: the input, output is different from that of SuperPointFrontend
     heatmap: torch (batch_size, H, W, 1)
     dense_desc: torch (batch_size, H, W, 256)
     pts: [batch_size, np (N, 3)]
     desc: [batch_size, np(256, N)]
     """
-    default_config = {
-        "train_iter": 170000,
-        "save_interval": 2000,
-        "tensorboard_interval": 200,
-        "model": {"subpixel": {"enable": False}},
-        "data": {"gaussian_label": {"enable": False}},
-    }
 
     def __init__(self, config, save_path, device=None):
         super().__init__(config, save_path, device)
-        self.config = {**self.default_config, **config}
+        self.config = config
         logger.info("Loaded TrainModeHeatmap")
         logger.info(f"Config: {self.config}")
 

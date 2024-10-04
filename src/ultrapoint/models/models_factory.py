@@ -9,7 +9,7 @@ class ModelsFactory:
     @staticmethod
     def create(model_name: str, state=None, **kwargs):
         assert (
-                model_name in ModelsFactory.SUPPORTED_MODELS
+            model_name in ModelsFactory.SUPPORTED_MODELS
         ), f"Model {model_name} is not supported"
 
         model = ModelsFactory.SUPPORTED_MODELS[model_name](**kwargs)
