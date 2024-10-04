@@ -72,14 +72,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         ######
 
         self.action = "training" if task == "train" else "validation"
-
-        self.cell_size = 8
-
-        self.gaussian_label = False
-        if self.config["gaussian_label"]["enable"]:
-            # self.params_transform = {'crop_size_y': 120, 'crop_size_x': 160, 'stride': 1, 'sigma': self.config['gaussian_label']['sigma']}
-            self.gaussian_label = True
-
+        self.gaussian_label = self.config["gaussian_label"]["enable"]
         self.pool = multiprocessing.Pool(6)
 
         # Parse drawing primitives
@@ -95,7 +88,7 @@ class SyntheticDatasetGaussian(data.Dataset):
 
         splits = {s: {"images": [], "points": []} for s in [self.action]}
         for primitive in primitives:
-            tar_path = Path(basepath, "{}.tar.gz".format(primitive))
+            tar_path = Path(basepath, f"{primitive}.tar.gz")
             if not tar_path.exists():
                 self.dump_primitive_data(primitive, tar_path, self.config)
 
@@ -190,21 +183,6 @@ class SyntheticDatasetGaussian(data.Dataset):
         labels_2D = get_labels(pnts, H, W)
         sample.update({"labels_2D": labels_2D.unsqueeze(0)})
 
-        # assert Hc == round(Hc) and Wc == round(Wc), "Input image size not fit in the block size"
-        if (
-            self.config["augmentation"]["photometric"]["enable_train"]
-            and self.action == "training"
-        ) or (
-            self.config["augmentation"]["photometric"]["enable_val"]
-            and self.action == "validation"
-        ):
-            # print('>>> Photometric aug enabled for %s.'%self.action)
-            # augmentation = self.ImgAugTransform(**self.config["augmentation"])
-            img = imgPhotometric(img)
-        else:
-            # print('>>> Photometric aug disabled for %s.'%self.action)
-            pass
-
         if not (
             (
                 self.config["augmentation"]["homographic"]["enable_train"]
@@ -215,7 +193,6 @@ class SyntheticDatasetGaussian(data.Dataset):
                 and self.action == "validation"
             )
         ):
-            # print('<<< Homograpy aug disabled for %s.'%self.action)
             img = img[:, :, np.newaxis]
             # labels = labels.view(-1,H,W)
             if self.transform is not None:
