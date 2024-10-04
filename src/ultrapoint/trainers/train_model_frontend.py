@@ -1,4 +1,5 @@
 import os
+import itertools
 import torch
 import torch.optim
 import torch.nn as nn
@@ -18,7 +19,6 @@ from ultrapoint.utils.utils import (
 )
 from ultrapoint.utils.utils import saveImg
 from ultrapoint.utils.utils import precisionRecall_torch
-from ultrapoint.utils.utils import save_checkpoint
 from ultrapoint.utils.loader import get_checkpoints_path
 from ultrapoint.utils.torch_helpers import (
     determine_device,
@@ -232,32 +232,30 @@ class TrainModelFrontend:
             try:
                 logger.info(f"Epoch: {self._epoch}")
                 for i, sample_train in tqdm(enumerate(self.train_loader)):
-                    # train one sample
                     loss_out = self.train_val_sample(sample_train, self.n_iter, True)
                     running_losses.append(loss_out)
-                    # run validation
-                    if (
-                        self._eval
-                        and self.n_iter % self.config["validation_interval"] == 0
-                    ):
-                        logger.info("Validating...")
-                        for j, sample_val in enumerate(self.val_loader):
-                            self.train_val_sample(sample_val, self.n_iter + j, False)
-                            if j > self.config.get("validation_size", 3):
-                                break
 
                     if self.n_iter % self.config["save_interval"] == 0:
-                        logger.info(
-                            f"Model is saved every: every {self.config['save_interval']}, current iteration: {self.n_iter}",
-                        )
+                        logger.info(f"Current iteration: {self.n_iter}")
                         self._save()
+
+                    if (
+                        self._eval
+                        and self.n_iter % self.config["validation_interval"] == 1
+                    ):
+                        logger.info("Validating...")
+                        for j, sample_val in enumerate(
+                            itertools.islice(
+                                self.val_loader, self.config.get("validation_size")
+                            )
+                        ):
+                            self.train_val_sample(sample_val, self.n_iter + j, False)
 
                     if self.n_iter > self.max_iter:
                         logger.info("End training: {self.n_iter}")
                         break
 
                     self.n_iter += 1
-
                 self._epoch += 1
 
             except KeyboardInterrupt:
@@ -545,19 +543,18 @@ class TrainModelFrontend:
         # save checkpoint for resuming training
         :return:
         """
-        model_state_dict = self.net.module.state_dict()
-        save_checkpoint(
-            self.checkpoints_path,
+        filename = f"{self.config['model']['name']}_{self.n_iter}_checkpoint.pth.tar"
+        torch.save(
             {
                 "epoch": self._epoch,
                 "n_iter": self.n_iter,
-                "model_state_dict": model_state_dict,
+                "model_state_dict": self.net.module.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "loss": self.loss,
             },
-            self.n_iter,
+            os.path.join(self.checkpoints_path, filename),
         )
-        pass
+        logger.info(f"Saved checkpoint to {filename}")
 
     def add_single_image_to_tb(self, task, img_tensor, n_iter, name="img"):
         """
