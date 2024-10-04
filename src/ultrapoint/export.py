@@ -6,13 +6,12 @@ import numpy as np
 from tqdm import tqdm
 
 from ultrapoint.trainers import TrainersFactory
-from src.ultrapoint.utils.utils import prepare_experiment_directory
-from src.ultrapoint.utils.logging import create_logger, logger, log_data_size
-from src.ultrapoint.dataloaders import DataLoadersFactory
-from src.ultrapoint.utils.config_helpers import load_config
-from src.ultrapoint.utils.loader import get_checkpoints_path
-from src.ultrapoint.utils.torch_helpers import squeeze_to_numpy
-from src.ultrapoint.models.model_wrap import PointTracker
+from ultrapoint.utils.utils import prepare_experiment_directory
+from ultrapoint.utils.logging import create_logger, logger, log_data_size
+from ultrapoint.dataloaders import DataLoadersFactory
+from ultrapoint.utils.config_helpers import load_config
+from ultrapoint.utils.torch_helpers import squeeze_to_numpy
+from ultrapoint.models.model_wrap import PointTracker
 
 
 def get_keypoints(model, img, subpixel: bool = None, patch_size: int = None):
@@ -50,9 +49,7 @@ def export_descriptors(config, output_directory):
             'homography': np (3,3)
             'matches': np [N3, 4]
     """
-    predictions_folder = os.path.join(
-        get_checkpoints_path(output_directory), "predictions"
-    )
+    predictions_folder = os.path.join(output_directory, "predictions")
     os.makedirs(predictions_folder, exist_ok=True)
 
     test_loader = DataLoadersFactory.create(

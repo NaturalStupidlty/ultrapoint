@@ -11,26 +11,8 @@ import torch.utils.data
 
 from loguru import logger
 from ultrapoint.models.models_factory import ModelsFactory
-from src.ultrapoint.utils.utils import flattenDetection
-
-
-def labels2Dto3D(cell_size, labels):
-    H, W = labels.shape[0], labels.shape[1]
-    Hc, Wc = H // cell_size, W // cell_size
-    labels = labels[:, np.newaxis, :, np.newaxis]
-    labels = labels.reshape(Hc, cell_size, Wc, cell_size)
-    labels = np.transpose(labels, [1, 3, 0, 2])
-    labels = labels.reshape(1, cell_size**2, Hc, Wc)
-    labels = labels.squeeze()
-    dustbin = labels.sum(axis=0)
-    dustbin = 1 - dustbin
-    dustbin[dustbin < 0] = 0
-    labels = np.concatenate((labels, dustbin[np.newaxis, :, :]), axis=0)
-    return labels
-
-
-def toNumpy(tensor):
-    return tensor.detach().cpu().numpy()
+from ultrapoint.utils.utils import flattenDetection
+from ultrapoint.utils.torch_helpers import to_numpy
 
 
 class SuperPointFrontend_torch(object):
@@ -349,7 +331,7 @@ class SuperPointFrontend_torch(object):
         if self.subpixel:
             labels_res = outs[2]
             self.pts_subpixel = [
-                self.subpixel_predict(toNumpy(labels_res[i, ...]), pts[i])
+                self.subpixel_predict(to_numpy(labels_res[i, ...]), pts[i])
                 for i in range(batch_size)
             ]
         """

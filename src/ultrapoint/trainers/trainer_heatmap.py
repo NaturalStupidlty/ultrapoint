@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.utils.data
 
 from loguru import logger
+from src.ultrapoint.utils.utils import flattenDetection
 from ultrapoint.utils.utils import precisionRecall_torch
 from ultrapoint.trainers.trainer import Trainer
 
@@ -258,12 +259,12 @@ class TrainerHeatmap(Trainer):
         ##### try to minimize the error ######
         add_res_loss = False
         if add_res_loss and n_iter % 10 == 0:
-            heatmap_org = self.get_heatmap(semi, det_loss_type)  # tensor []
+            heatmap_org = flattenDetection(semi)
             heatmap_org_nms_batch = self.heatmap_to_nms(
                 self.images_dict, heatmap_org, name="heatmap_org"
             )
             if if_warp:
-                heatmap_warp = self.get_heatmap(semi_warp, det_loss_type)
+                heatmap_warp = flattenDetection(semi_warp)
                 heatmap_warp_nms_batch = self.heatmap_to_nms(
                     self.images_dict, heatmap_warp, name="heatmap_warp"
                 )
@@ -325,12 +326,12 @@ class TrainerHeatmap(Trainer):
             # add clean map to tensorboard
             ## semi_warp: flatten, to_numpy
 
-            heatmap_org = self.get_heatmap(semi, det_loss_type)  # tensor []
+            heatmap_org = flattenDetection(semi)
             heatmap_org_nms_batch = self.heatmap_to_nms(
                 self.images_dict, heatmap_org, name="heatmap_org"
             )
             if if_warp:
-                heatmap_warp = self.get_heatmap(semi_warp, det_loss_type)
+                heatmap_warp = flattenDetection(semi_warp)
                 heatmap_warp_nms_batch = self.heatmap_to_nms(
                     self.images_dict, heatmap_warp, name="heatmap_warp"
                 )

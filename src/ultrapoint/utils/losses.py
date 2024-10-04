@@ -48,10 +48,10 @@ def extract_patch_from_points(heatmap, points, patch_size=5):
     this function works in numpy
     """
     import numpy as np
-    from src.ultrapoint.utils.utils import toNumpy
+    from src.ultrapoint.utils.torch_helpers import to_numpy
     # numpy
     if type(heatmap) is torch.Tensor:
-        heatmap = toNumpy(heatmap)
+        heatmap = to_numpy(heatmap)
     heatmap = heatmap.squeeze()  # [H, W]
     # padding
     pad_size = int(patch_size/2)

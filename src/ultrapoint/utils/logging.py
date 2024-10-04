@@ -15,8 +15,7 @@ def create_logger(level: str, directory: str) -> None:
 
 def log_data_size(train_loader: DataLoader, config: dict, tag: str = "train") -> None:
     logger.info(
-        "%s split size %d in %d batches"
-        % (tag, len(train_loader) * config["model"]["batch_size"], len(train_loader))
+        f"{tag} split size {len(train_loader) * config['model']['batch_size']} in {len(train_loader)} batches"
     )
 
 

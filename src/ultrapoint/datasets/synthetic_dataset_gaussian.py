@@ -96,7 +96,6 @@ class SyntheticDatasetGaussian(data.Dataset):
             logger.debug(f"Extracting archive for primitive {primitive}")
             logger.debug(f"tar_path: {tar_path}")
             tar = tarfile.open(tar_path)
-            # temp_dir = Path(os.environ['TMPDIR'])
             temp_dir = Path(self._data_path)
             tar.extractall(path=temp_dir)
             tar.close()

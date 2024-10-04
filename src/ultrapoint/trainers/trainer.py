@@ -12,6 +12,7 @@ from tqdm import tqdm
 from loguru import logger
 from tensorboardX import SummaryWriter
 from ultrapoint.models.models_factory import ModelsFactory
+from ultrapoint.utils.torch_helpers import to_numpy
 from ultrapoint.utils.utils import (
     labels2Dto3D,
     flattenDetection,
@@ -19,7 +20,6 @@ from ultrapoint.utils.utils import (
 )
 from ultrapoint.utils.utils import saveImg
 from ultrapoint.utils.utils import precisionRecall_torch
-from ultrapoint.utils.loader import get_checkpoints_path
 from ultrapoint.utils.torch_helpers import (
     determine_device,
     clear_memory,
@@ -39,10 +39,6 @@ def thd_img(img, thd=0.015):
     img[img < thd] = 0
     img[img >= thd] = 1
     return img
-
-
-def toNumpy(tensor):
-    return tensor.detach().cpu().numpy()
 
 
 def img_overlap(img_r, img_g, img_gray):  # img_b repeat
@@ -76,7 +72,8 @@ class Trainer:
         """
         self.config = config
         self.device = device if device is not None else determine_device()
-        self.checkpoints_path = get_checkpoints_path(save_path)
+        self.checkpoints_path = os.path.join(save_path, "predictions")
+        os.makedirs(self.checkpoints_path, exist_ok=True)
         self._train = True
         self._eval = True
         self.subpixel = False
@@ -215,12 +212,11 @@ class Trainer:
     def val_loader(self, loader):
         self._val_loader = loader
 
-    def train(self, **options):
+    def train(self):
         """
         # outer loop for training
         # control training and validation pace
         # stop when reaching max iterations
-        :param options:
         :return:
         """
         logger.info(f"Iteration: {self.n_iter}")
@@ -264,7 +260,7 @@ class Trainer:
             finally:
                 self.writer.close()
 
-    def getLabels(self, labels_2D, cell_size, device="cpu"):
+    def getLabels(self, labels_2D, cell_size, device):
         """
         # transform 2D labels to 3D shape for training
         :param labels_2D:
@@ -474,7 +470,7 @@ class Trainer:
 
             num_patches_max = 500
             # feed into the network
-            pred_res = self.subnet(
+            pred_res = self.net(
                 patches[:num_patches_max, ...].to(self.device)
             )  # tensor [1, N, 2]
 
@@ -505,7 +501,6 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
 
-        self.addLosses2tensorboard(losses, task)
         if n_iter % tb_interval == 0 or task == "val":
             logger.info(
                 "current iteration: %d, tensorboard_interval: %d", n_iter, tb_interval
@@ -610,7 +605,9 @@ class Trainer:
         semi_warp_thd = thd_img(semi_warp_flat, thd=thd)
 
         result_overlap = img_overlap(
-            toNumpy(labels_2D[0, :, :, :]), toNumpy(semi_thd), toNumpy(img[0, :, :, :])
+            to_numpy(labels_2D[0, :, :, :]),
+            to_numpy(semi_thd),
+            to_numpy(img[0, :, :, :]),
         )
 
         self.writer.add_image(
@@ -621,9 +618,9 @@ class Trainer:
         )  # rgb to bgr * 255
 
         result_overlap = img_overlap(
-            toNumpy(labels_warp_2D[0, :, :, :]),
-            toNumpy(semi_warp_thd),
-            toNumpy(img_warp[0, :, :, :]),
+            to_numpy(labels_warp_2D[0, :, :, :]),
+            to_numpy(semi_warp_thd),
+            to_numpy(img_warp[0, :, :, :]),
         )
         self.writer.add_image(
             task + "-warp_detector_output_thd_overlay", result_overlap, n_iter
@@ -633,9 +630,9 @@ class Trainer:
         )  # rgb to bgr * 255
 
         mask_overlap = img_overlap(
-            toNumpy(1 - mask_warp_2D[0, :, :, :]) / 2,
-            np.zeros_like(toNumpy(img_warp[0, :, :, :])),
-            toNumpy(img_warp[0, :, :, :]),
+            to_numpy(1 - mask_warp_2D[0, :, :, :]) / 2,
+            np.zeros_like(to_numpy(img_warp[0, :, :, :])),
+            to_numpy(img_warp[0, :, :, :]),
         )
 
         # writer.add_image(task + '_mask_valid_first_layer', mask_warp[0, :, :, :], n_iter)
@@ -724,7 +721,7 @@ class Trainer:
         precision_recall_boxnms_list = []
         for idx in range(batch_size):
             semi_flat_tensor = flattenDetection(semi[idx, :, :, :]).detach()
-            semi_flat = toNumpy(semi_flat_tensor)
+            semi_flat = to_numpy(semi_flat_tensor)
             semi_thd = np.squeeze(semi_flat, 0)
             pts_nms = getPtsFromHeatmap(semi_thd, conf_thresh, nms_dist)
             semi_thd_nms_sample = np.zeros_like(semi_thd)
@@ -742,7 +739,7 @@ class Trainer:
                 result_overlap = img_overlap(
                     np.expand_dims(label_sample_nms_sample, 0),
                     np.expand_dims(semi_thd_nms_sample, 0),
-                    toNumpy(img[idx, :, :, :]),
+                    to_numpy(img[idx, :, :, :]),
                 )
                 self.writer.add_image(
                     task + "-detector_output_thd_overlay-NMS" + "/%d" % idx,
@@ -765,7 +762,7 @@ class Trainer:
                     result_overlap = img_overlap(
                         np.expand_dims(label_sample_nms_sample, 0),
                         semi_flat_tensor_nms.numpy()[np.newaxis, :, :],
-                        toNumpy(img[idx, :, :, :]),
+                        to_numpy(img[idx, :, :, :]),
                     )
                     self.writer.add_image(
                         task + "-detector_output_thd_overlay-boxNMS" + "/%d" % idx,
@@ -812,14 +809,6 @@ class Trainer:
                 % (task, n_iter, precision, recall)
             )
 
-    def get_heatmap(self, semi, det_loss_type="softmax"):
-        if det_loss_type == "l2":
-            heatmap = self.flatten_64to1(semi)
-        else:
-            heatmap = flattenDetection(semi)
-        return heatmap
-
-    ######## static methods ########
     @staticmethod
     def input_to_imgDict(sample, tb_images_dict):
         # for e in list(sample):

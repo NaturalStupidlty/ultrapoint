@@ -102,8 +102,8 @@ model:
     detector_loss:
         loss_type: 'softmax'
 
-    batch_size: 64
-    eval_batch_size: 64
+    batch_size: 32
+    eval_batch_size: 32
     learning_rate: 0.001
     kernel_reg: 0.
     detection_threshold: 0.001 # 1/65
