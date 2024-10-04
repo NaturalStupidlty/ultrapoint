@@ -5,22 +5,29 @@ Author: You-Yi Jau, Rui Zhu
 Date: 2019/12/12
 """
 
+import cv2
+import shutil
+import tarfile
+import multiprocessing
 import torch.utils.data as data
 import torch
 import numpy as np
-from imageio import imread
 
+from imageio import imread
+from tqdm import tqdm
 from loguru import logger
 from pathlib import Path
-import tarfile
 
-import random
 from src.ultrapoint.datasets import synthetic_dataset
-from tqdm import tqdm
-import cv2
-import shutil
-
-import multiprocessing
+from src.ultrapoint.utils.homographies import (
+    sample_homography as sample_homography,
+)
+from src.ultrapoint.utils.photometric import (
+    ImgAugTransform,
+    customizedTransform,
+)
+from src.ultrapoint.utils.utils import compute_valid_mask
+from src.ultrapoint.utils.utils import inv_warp_image, warp_points
 
 
 def load_as_float(path):
@@ -42,92 +49,15 @@ class SyntheticDatasetGaussian(data.Dataset):
     ]
     logger.info(drawing_primitives)
 
-    def dump_primitive_data(self, primitive, tar_path, config):
-        temp_dir = Path(self._data_path, primitive)
-
-        logger.info(f"Generating .tar file for primitive {primitive}.\n")
-        synthetic_dataset.set_random_state(
-            np.random.RandomState(config["generation"]["random_seed"])
-        )
-        for split, size in self.config["generation"]["split_sizes"].items():
-            im_dir, pts_dir = [Path(temp_dir, i, split) for i in ["images", "points"]]
-            im_dir.mkdir(parents=True, exist_ok=True)
-            pts_dir.mkdir(parents=True, exist_ok=True)
-
-            description = f"Generating {primitive} {split} set"
-            for i in tqdm(range(size), desc=description, leave=False):
-                image = synthetic_dataset.generate_background(
-                    config["generation"]["image_size"],
-                    **config["generation"]["params"]["generate_background"],
-                )
-                points = np.array(
-                    getattr(synthetic_dataset, primitive)(
-                        image, **config["generation"]["params"].get(primitive, {})
-                    )
-                )
-                points = np.flip(points, 1)  # reverse convention with opencv
-
-                b = config["preprocessing"]["blur_size"]
-                image = cv2.GaussianBlur(image, (b, b), 0)
-                points = (
-                    points
-                    * np.array(config["preprocessing"]["resize"], float)
-                    / np.array(config["generation"]["image_size"], float)
-                )
-                image = cv2.resize(
-                    image,
-                    tuple(config["preprocessing"]["resize"][::-1]),
-                    interpolation=cv2.INTER_LINEAR,
-                )
-
-                cv2.imwrite(str(Path(im_dir, "{}.png".format(i))), image)
-                np.save(Path(pts_dir, "{}.npy".format(i)), points)
-
-        # Pack into a tar file
-        tar = tarfile.open(tar_path, mode="w:gz")
-        tar.add(temp_dir, arcname=primitive)
-        tar.close()
-        shutil.rmtree(temp_dir)
-        logger.info(".tar file dumped to {}.".format(tar_path))
-
-    def parse_primitives(self, names, all_primitives):
-        p = (
-            all_primitives
-            if (names == "all")
-            else (names if isinstance(names, list) else [names])
-        )
-        assert set(p) <= set(all_primitives)
-        return p
-
     def __init__(
         self,
-        seed=None,
         task="train",
-        sequence_length=3,
-        transform=None,
-        target_transform=None,
-        getPts=False,
+        transforms=None,
         **config,
     ):
-        from src.ultrapoint.utils.homographies import (
-            sample_homography as sample_homography,
-        )
-        from src.ultrapoint.utils.photometric import (
-            ImgAugTransform,
-            customizedTransform,
-        )
-        from src.ultrapoint.utils.utils import compute_valid_mask
-        from src.ultrapoint.utils.utils import inv_warp_image, warp_points
-
-        torch.set_default_dtype(torch.float32)
-
-        np.random.seed(seed)
-        random.seed(seed)
-
-        # Update config
         self.config = config
         self._data_path = config.get("path", "/tmp")
-        self.transform = transform
+        self.transform = transforms
         self.sample_homography = sample_homography
         self.compute_valid_mask = compute_valid_mask
         self.inv_warp_image = inv_warp_image
@@ -145,7 +75,6 @@ class SyntheticDatasetGaussian(data.Dataset):
         self.action = "training" if task == "train" else "validation"
 
         self.cell_size = 8
-        self.getPts = getPts
 
         self.gaussian_label = False
         if self.config["gaussian_label"]["enable"]:
@@ -199,36 +128,6 @@ class SyntheticDatasetGaussian(data.Dataset):
 
         self.crawl_folders(splits)
 
-    def crawl_folders(self, splits):
-        sequence_set = []
-        for img, pnts in zip(
-            splits[self.action]["images"], splits[self.action]["points"]
-        ):
-            sample = {"image": img, "points": pnts}
-            sequence_set.append(sample)
-        self.samples = sequence_set
-
-    def putGaussianMaps(self, center, accumulate_confid_map):
-        crop_size_y = self.params_transform["crop_size_y"]
-        crop_size_x = self.params_transform["crop_size_x"]
-        stride = self.params_transform["stride"]
-        sigma = self.params_transform["sigma"]
-
-        grid_y = crop_size_y / stride
-        grid_x = crop_size_x / stride
-        start = stride / 2.0 - 0.5
-        xx, yy = np.meshgrid(range(int(grid_x)), range(int(grid_y)))
-        xx = xx * stride + start
-        yy = yy * stride + start
-        d2 = (xx - center[0]) ** 2 + (yy - center[1]) ** 2
-        exponent = d2 / 2.0 / sigma / sigma
-        mask = exponent <= sigma
-        cofid_map = np.exp(-exponent)
-        cofid_map = np.multiply(mask, cofid_map)
-        accumulate_confid_map += cofid_map
-        accumulate_confid_map[accumulate_confid_map > 1.0] = 1.0
-        return accumulate_confid_map
-
     def __getitem__(self, index):
         """
         :param index:
@@ -236,12 +135,6 @@ class SyntheticDatasetGaussian(data.Dataset):
             labels_2D: tensor(1, H, W)
             image: tensor(1, H, W)
         """
-
-        def checkSat(img, name=""):
-            if img.max() > 1:
-                print(name, img.max())
-            elif img.min() < 0:
-                print(name, img.min())
 
         def imgPhotometric(img):
             """
@@ -476,13 +369,97 @@ class SyntheticDatasetGaussian(data.Dataset):
                 {"homographies": homography, "inv_homographies": inv_homography}
             )
 
-        if self.getPts:
-            sample.update({"pts": pnts})
-
         return sample
 
     def __len__(self):
         return len(self.samples)
+
+    def dump_primitive_data(self, primitive, tar_path, config: dict):
+        temp_dir = Path(self._data_path, primitive)
+
+        logger.info(f"Generating .tar file for primitive {primitive}.\n")
+        synthetic_dataset.set_random_state(
+            np.random.RandomState(config["generation"]["random_seed"])
+        )
+        for split, size in self.config["generation"]["split_sizes"].items():
+            im_dir, pts_dir = [Path(temp_dir, i, split) for i in ["images", "points"]]
+            im_dir.mkdir(parents=True, exist_ok=True)
+            pts_dir.mkdir(parents=True, exist_ok=True)
+
+            description = f"Generating {primitive} {split} set"
+            for i in tqdm(range(size), desc=description, leave=False):
+                image = synthetic_dataset.generate_background(
+                    config["generation"]["image_size"],
+                    **config["generation"]["params"]["generate_background"],
+                )
+                points = np.array(
+                    getattr(synthetic_dataset, primitive)(
+                        image, **config["generation"]["params"].get(primitive, {})
+                    )
+                )
+                points = np.flip(points, 1)  # reverse convention with opencv
+
+                b = config["preprocessing"]["blur_size"]
+                image = cv2.GaussianBlur(image, (b, b), 0)
+                points = (
+                    points
+                    * np.array(config["preprocessing"]["resize"], float)
+                    / np.array(config["generation"]["image_size"], float)
+                )
+                image = cv2.resize(
+                    image,
+                    tuple(config["preprocessing"]["resize"][::-1]),
+                    interpolation=cv2.INTER_LINEAR,
+                )
+
+                cv2.imwrite(str(Path(im_dir, "{}.png".format(i))), image)
+                np.save(Path(pts_dir, "{}.npy".format(i)), points)
+
+        # Pack into a tar file
+        tar = tarfile.open(tar_path, mode="w:gz")
+        tar.add(temp_dir, arcname=primitive)
+        tar.close()
+        shutil.rmtree(temp_dir)
+        logger.info(".tar file dumped to {}.".format(tar_path))
+
+    def parse_primitives(self, names, all_primitives):
+        p = (
+            all_primitives
+            if (names == "all")
+            else (names if isinstance(names, list) else [names])
+        )
+        assert set(p) <= set(all_primitives)
+        return p
+
+    def crawl_folders(self, splits):
+        sequence_set = []
+        for img, pnts in zip(
+            splits[self.action]["images"], splits[self.action]["points"]
+        ):
+            sample = {"image": img, "points": pnts}
+            sequence_set.append(sample)
+        self.samples = sequence_set
+
+    def putGaussianMaps(self, center, accumulate_confid_map):
+        crop_size_y = self.params_transform["crop_size_y"]
+        crop_size_x = self.params_transform["crop_size_x"]
+        stride = self.params_transform["stride"]
+        sigma = self.params_transform["sigma"]
+
+        grid_y = crop_size_y / stride
+        grid_x = crop_size_x / stride
+        start = stride / 2.0 - 0.5
+        xx, yy = np.meshgrid(range(int(grid_x)), range(int(grid_y)))
+        xx = xx * stride + start
+        yy = yy * stride + start
+        d2 = (xx - center[0]) ** 2 + (yy - center[1]) ** 2
+        exponent = d2 / 2.0 / sigma / sigma
+        mask = exponent <= sigma
+        cofid_map = np.exp(-exponent)
+        cofid_map = np.multiply(mask, cofid_map)
+        accumulate_confid_map += cofid_map
+        accumulate_confid_map[accumulate_confid_map > 1.0] = 1.0
+        return accumulate_confid_map
 
     ## util functions
     def gaussian_blur(self, image):
