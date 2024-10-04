@@ -76,7 +76,7 @@ class TrainModelFrontend:
         """
         self.config = config
         self.device = device if device is not None else determine_device()
-        self.save_path = get_checkpoints_path(save_path)
+        self.checkpoints_path = get_checkpoints_path(save_path)
         self._train = True
         self._eval = True
         self.subpixel = False
@@ -547,7 +547,7 @@ class TrainModelFrontend:
         """
         model_state_dict = self.net.module.state_dict()
         save_checkpoint(
-            self.save_path,
+            self.checkpoints_path,
             {
                 "epoch": self._epoch,
                 "n_iter": self.n_iter,
