@@ -1,73 +1,73 @@
-""" photometric augmentation
-# used in dataloader 
-"""
-
-from imgaug import augmenters as iaa
-import numpy as np
 import cv2
+import numpy as np
+
+from numpy.random import randint
+from imgaug import augmenters
 
 
 class ImgAugTransform:
     def __init__(self, **config):
-        from numpy.random import uniform
-        from numpy.random import randint
+        self.aug = augmenters.Sequential(
+            [
+                augmenters.Sometimes(0.25, augmenters.GaussianBlur(sigma=(0, 3.0))),
+                augmenters.Sometimes(
+                    0.25,
+                    augmenters.OneOf(
+                        [
+                            augmenters.Dropout(p=(0, 0.1)),
+                            augmenters.CoarseDropout(0.1, size_percent=0.5),
+                        ]
+                    ),
+                ),
+                augmenters.Sometimes(
+                    0.25,
+                    augmenters.AdditiveGaussianNoise(
+                        loc=0, scale=(0.0, 0.05), per_channel=0.5
+                    ),
+                ),
+            ]
+        )
 
-        ## old photometric
-        self.aug = iaa.Sequential([
-            iaa.Sometimes(0.25, iaa.GaussianBlur(sigma=(0, 3.0))),
-            iaa.Sometimes(0.25,
-                          iaa.OneOf([iaa.Dropout(p=(0, 0.1)),
-                                     iaa.CoarseDropout(0.1, size_percent=0.5)])),
-            iaa.Sometimes(0.25,
-                          iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.05), per_channel=0.5),
-                          )
-        ])
-
-        if config['photometric']['enable']:
-            params = config['photometric']['params']
+        if config["photometric"]["enable"]:
+            params = config["photometric"]["params"]
             aug_all = []
-            if params.get('random_brightness', False):
-                change = params['random_brightness']['max_abs_change']
-                aug = iaa.Add((-change, change))
-                #                 aug_all.append(aug)
+            if params.get("random_brightness", False):
+                change = params["random_brightness"]["max_abs_change"]
+                aug = augmenters.Add((-change, change))
                 aug_all.append(aug)
-            # if params['random_contrast']:
-            if params.get('random_contrast', False):
-                change = params['random_contrast']['strength_range']
-                aug = iaa.LinearContrast((change[0], change[1]))
+            if params.get("random_contrast", False):
+                change = params["random_contrast"]["strength_range"]
+                aug = augmenters.LinearContrast((change[0], change[1]))
                 aug_all.append(aug)
-            # if params['additive_gaussian_noise']:
-            if params.get('additive_gaussian_noise', False):
-                change = params['additive_gaussian_noise']['stddev_range']
-                aug = iaa.AdditiveGaussianNoise(scale=(change[0], change[1]))
+            if params.get("additive_gaussian_noise", False):
+                change = params["additive_gaussian_noise"]["stddev_range"]
+                aug = augmenters.AdditiveGaussianNoise(scale=(change[0], change[1]))
                 aug_all.append(aug)
-            # if params['additive_speckle_noise']:
-            if params.get('additive_speckle_noise', False):
-                change = params['additive_speckle_noise']['prob_range']
-                # aug = iaa.Dropout(p=(change[0], change[1]))
-                aug = iaa.ImpulseNoise(p=(change[0], change[1]))
+            if params.get("additive_speckle_noise", False):
+                change = params["additive_speckle_noise"]["prob_range"]
+                aug = augmenters.ImpulseNoise(p=(change[0], change[1]))
                 aug_all.append(aug)
-            # if params['motion_blur']:
-            if params.get('motion_blur', False):
-                change = params['motion_blur']['max_kernel_size']
+            if params.get("motion_blur", False):
+                change = params["motion_blur"]["max_kernel_size"]
                 if change > 3:
                     change = randint(3, change)
                 elif change == 3:
-                    aug = iaa.Sometimes(0.5, iaa.MotionBlur(change))
+                    aug = augmenters.Sometimes(0.5, augmenters.MotionBlur(change))
+                    aug_all.append(aug)
+
+            if params.get("GaussianBlur", False):
+                change = params["GaussianBlur"]["sigma"]
+                aug = augmenters.GaussianBlur(sigma=change)
                 aug_all.append(aug)
 
-            if params.get('GaussianBlur', False):
-                change = params['GaussianBlur']['sigma']
-                aug = iaa.GaussianBlur(sigma=(change))
-                aug_all.append(aug)
-
-            self.aug = iaa.Sequential(aug_all)
-
+            self.aug = augmenters.Sequential(aug_all)
 
         else:
-            self.aug = iaa.Sequential([
-                iaa.Noop(),
-            ])
+            self.aug = augmenters.Sequential(
+                [
+                    augmenters.Noop(),
+                ]
+            )
 
     def __call__(self, img):
         img = np.array(img)
@@ -78,11 +78,14 @@ class ImgAugTransform:
 
 
 class customizedTransform:
-    def __init__(self):
-        pass
 
-    def additive_shade(self, image, nb_ellipses=20, transparency_range=[-0.5, 0.8],
-                       kernel_size_range=[250, 350]):
+    def additive_shade(
+        self,
+        image,
+        nb_ellipses=20,
+        transparency_range=[-0.5, 0.8],
+        kernel_size_range=[250, 350],
+    ):
         def _py_additive_shade(img):
             min_dim = min(img.shape[:2]) / 4
             mask = np.zeros(img.shape[:2], np.uint8)
@@ -99,16 +102,32 @@ class customizedTransform:
             kernel_size = np.random.randint(*kernel_size_range)
             if (kernel_size % 2) == 0:  # kernel_size has to be odd
                 kernel_size += 1
-            mask = cv2.GaussianBlur(mask.astype(np.float32), (kernel_size, kernel_size), 0)
-#             shaded = img * (1 - transparency * mask[..., np.newaxis] / 255.)
-            shaded = img * (1 - transparency * mask[..., np.newaxis] / 255.)
+            mask = cv2.GaussianBlur(
+                mask.astype(np.float32), (kernel_size, kernel_size), 0
+            )
+            #             shaded = img * (1 - transparency * mask[..., np.newaxis] / 255.)
+            shaded = img * (1 - transparency * mask[..., np.newaxis] / 255.0)
             return np.clip(shaded, 0, 255)
 
         shaded = _py_additive_shade(image)
         return shaded
 
     def __call__(self, img, **config):
-        if config['photometric']['params']['additive_shade']:
-            params = config['photometric']['params']
-            img = self.additive_shade(img * 255, **params['additive_shade'])
+        if config["photometric"]["params"]["additive_shade"]:
+            params = config["photometric"]["params"]
+            img = self.additive_shade(img * 255, **params["additive_shade"])
         return img / 255
+
+
+def imgPhotometric(img, augmentations_config: dict):
+    """
+    :param img:
+        numpy (H, W)
+    :return:
+    """
+    augmentation = ImgAugTransform(**augmentations_config)
+    img = img[:, :, np.newaxis]
+    img = augmentation(img)
+    cusAug = customizedTransform()
+    img = cusAug(img, **augmentations_config)
+    return img

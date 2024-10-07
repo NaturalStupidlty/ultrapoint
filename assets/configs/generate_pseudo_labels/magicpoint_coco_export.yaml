@@ -1,5 +1,5 @@
 data:
-    dataset: 'Coco'
+    dataset: 'ImagesDataset'
     path: '../assets/datasets/coco/train2014'
     labels: null
     cache_in_memory: false
@@ -12,11 +12,11 @@ data:
         enable: false
     augmentation:
         photometric:
-            enable: false
-            primitives: "all"
-            random_order: true
+            enable_train: false
+            enable_val: false
         homographic:
-            enable: false
+            enable_train: false
+            enable_val: false
             valid_border_margin: 0
     homography_adaptation:
         enable: true
@@ -43,8 +43,7 @@ data:
 
 model:
     name: 'SuperPointNet'
-    params: {
-    }    
+    params: {}
     batch_size: 1
     eval_batch_size: 1
     detection_threshold: 0.015
@@ -54,7 +53,7 @@ model:
     subpixel:
         enable: true
 
-pretrained: '../assets/logs/magicpoint_synth_2024-09-27_18:25:15/checkpoints/superPointNet_200000_checkpoint.pth.tar'
+pretrained: '../assets/logs/magicpoint_synth_2024-10-07_10:34:55/checkpoints/SuperPointNet_34000_checkpoint.pth.tar'
 skip_existing: false
 save_images: true
 

@@ -9,7 +9,7 @@ from ultrapoint.models.model_wrap import SuperPointFrontend_torch
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.draw import draw_keypoints
 from ultrapoint.dataloaders import DataLoadersFactory
-from ultrapoint.utils.logging import create_logger, logger
+from ultrapoint.logger.logging import create_logger, logger
 from ultrapoint.utils.torch_helpers import (
     determine_device,
     clear_memory,

@@ -32,7 +32,7 @@ data:
             primitives: all
             random_order: true
     cache_in_memory: false
-    dataset: Coco
+    dataset: ImagesDataset
     gaussian_label:
         enable: true
         params:

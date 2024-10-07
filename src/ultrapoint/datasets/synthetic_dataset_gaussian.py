@@ -64,15 +64,13 @@ class SyntheticDatasetGaussian(data.Dataset):
         self.ImgAugTransform = ImgAugTransform
         self.customizedTransform = customizedTransform
 
-        ######
-        self.enable_photo_train = self.config["augmentation"]["photometric"]["enable"]
-        self.enable_homo_train = self.config["augmentation"]["homographic"]["enable"]
-        self.enable_homo_val = False
-        self.enable_photo_val = False
-        ######
+        self.enable_photo_train = config["augmentation"]["photometric"]["enable_train"]
+        self.enable_homo_train = config["augmentation"]["homographic"]["enable_train"]
+        self.enable_homo_val = config["augmentation"]["homographic"]["enable_val"]
+        self.enable_photo_val = config["augmentation"]["photometric"]["enable_val"]
 
         self.action = "training" if task == "train" else "validation"
-        self.gaussian_label = self.config["gaussian_label"]["enable"]
+        self.gaussian_label = config["gaussian_label"]["enable"]
         self.pool = multiprocessing.Pool(6)
 
         # Parse drawing primitives
@@ -90,7 +88,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         for primitive in primitives:
             tar_path = Path(basepath, f"{primitive}.tar.gz")
             if not tar_path.exists():
-                self.dump_primitive_data(primitive, tar_path, self.config)
+                self.dump_primitive_data(primitive, tar_path, config)
 
             # Untar locally
             logger.debug(f"Extracting archive for primitive {primitive}")
@@ -101,7 +99,7 @@ class SyntheticDatasetGaussian(data.Dataset):
             tar.close()
 
             # Gather filenames in all splits, optionally truncate
-            truncate = self.config["truncate"].get(primitive, 1)
+            truncate = config["truncate"].get(primitive, 1)
             path = Path(temp_dir, primitive)
             for s in splits:
                 e = [str(p) for p in Path(path, "images", s).iterdir()]
