@@ -72,7 +72,7 @@ class Trainer:
         """
         self.config = config
         self.device = device if device is not None else determine_device()
-        self.checkpoints_path = os.path.join(save_path, "predictions")
+        self.checkpoints_path = os.path.join(save_path, "checkpoints")
         os.makedirs(self.checkpoints_path, exist_ok=True)
         self._train = True
         self._eval = True
