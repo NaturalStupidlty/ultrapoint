@@ -135,7 +135,7 @@ def homography_adaptation_pretrained(config):
     )
 
     superpoint = SuperPoint(**config["model"]).to(device)
-    superpoint.load_state_dict(torch.load(config["pretrained"]))
+    superpoint.load_state_dict(torch.load(config["pretrained"], weights_only=False))
 
     for sample in tqdm(val_loader, desc="Generating pseudo labels"):
         try:
