@@ -4,7 +4,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader as DataLoader
 
 from loguru import logger
-from ultrapoint.datasets.base_images import ImagesDataset
+from ultrapoint.datasets.images_dataset import ImagesDataset
 from ultrapoint.datasets.synthetic_dataset_gaussian import SyntheticDatasetGaussian
 
 

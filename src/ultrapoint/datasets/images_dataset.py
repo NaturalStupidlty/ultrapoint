@@ -31,6 +31,9 @@ class ImagesDataset(Dataset):
         self._mode = mode
         self._samples = ImageLoader.load_samples(config)
 
+        self._config["augmentation"]["photometric"]["enable"] = config["augmentation"][
+            "photometric"
+        ][f"enable_{mode}"]
         self._enable_photo_train = config["augmentation"]["photometric"]["enable_train"]
         self._enable_homo_train = config["augmentation"]["homographic"]["enable_train"]
         self._enable_homo_val = config["augmentation"]["homographic"]["enable_val"]
@@ -211,11 +214,11 @@ class ImagesDataset(Dataset):
                     warped_img.squeeze(), inv_homography, mode="bilinear"
                 ).unsqueeze(0)
 
-                if (self._enable_photo_train == True and self._mode == "train") or (
+                if (self._enable_photo_train is True and self._mode == "train") or (
                     self._enable_photo_val and self._mode == "val"
                 ):
                     warped_img = imgPhotometric(
-                        warped_img.numpy().squeeze()
+                        warped_img.numpy().squeeze(), self._config["augmentation"]
                     )  # numpy array (H, W, 1)
                     warped_img = torch.tensor(warped_img, dtype=torch.float32)
                     pass

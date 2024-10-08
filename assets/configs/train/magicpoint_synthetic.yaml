@@ -11,7 +11,7 @@ data:
         "draw_cube",
         "gaussian_noise"
     ]
-    path: '../assets/datasets/'
+    path: '../../../datasets/synthetic_shapes/'
     suffix: 'v6'
     truncate: {}
     gaussian_label:
@@ -100,8 +100,8 @@ model:
     detector_loss:
         loss_type: 'softmax'
 
-    batch_size: 32
-    eval_batch_size: 32
+    batch_size: 64
+    eval_batch_size: 16
     learning_rate: 0.001
     kernel_reg: 0.
     detection_threshold: 0.001 # 1/65

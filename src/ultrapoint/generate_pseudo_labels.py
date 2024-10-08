@@ -5,7 +5,8 @@ import numpy
 
 from tqdm import tqdm
 
-from ultrapoint.models.model_wrap import SuperPointFrontend_torch
+from ultrapoint.models.model_wrap import SuperPointFrontend
+from ultrapoint.models.superpoint_pretrained import SuperPoint
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.draw import draw_keypoints
 from ultrapoint.dataloaders import DataLoadersFactory
@@ -54,7 +55,7 @@ def homography_adaptation(config):
         config, dataset_name=config["data"]["dataset"], mode="test"
     )
 
-    superpoint_wrapper = SuperPointFrontend_torch(
+    superpoint_wrapper = SuperPointFrontend(
         config=config,
         weights_path=config["pretrained"],
         nms_dist=config["model"]["nms"],
@@ -90,12 +91,6 @@ def homography_adaptation(config):
                 superpoint_wrapper.heatmap = outputs
                 points = superpoint_wrapper.soft_argmax_points([points])[0]
 
-            if config["data"]["dataset"] in ["Kitti", "Kitti_inh"]:
-                os.makedirs(
-                    os.path.join(output_directory, sample["scene_name"][0]),
-                    exist_ok=True,
-                )
-
             numpy.savez_compressed(
                 os.path.join(output_directory, f"{filename}.npz"),
                 pts=points.transpose()[:top_k, :],
@@ -106,6 +101,75 @@ def homography_adaptation(config):
                     sample["image_2D"].numpy().squeeze() * 255, points
                 )
                 saveImg(img_pts, os.path.join(output_directory, f"{filename}.png"))
+        except KeyboardInterrupt:
+            clear_memory()
+
+    logger.info(f"Processed {len(test_loader)} samples.")
+
+
+@torch.no_grad()
+def homography_adaptation_pretrained(config):
+    """
+    Input 1 image, output pseudo ground truth by homography adaptation with pretrained superpoint.
+    Save labels:
+        pred:
+            'prob' (keypoints): np (N1, 3)
+    """
+    device = determine_device()
+    logger.info(f"Training with device: {device}")
+
+    output_directory = os.path.join(config["data"]["path"], "pseudo_labels")
+    os.makedirs(output_directory, exist_ok=True)
+
+    top_k = config["model"].get("top_k", -1)
+    iterations = config["data"]["homography_adaptation"]["num"]
+    logger.info(f"Homography adaptation iterations: {iterations}")
+
+    test_loader = DataLoadersFactory.create(
+        config, dataset_name=config["data"]["dataset"], mode="test"
+    )
+
+    superpoint = SuperPoint(**config["model"]).to(device)
+    superpoint.load_state_dict(torch.load(config["pretrained"]))
+
+    for sample in tqdm(test_loader, desc="Generating pseudo labels"):
+        try:
+            filename = str(sample["name"][0])
+            if config["skip_existing"] and os.path.exists(
+                os.path.join(output_directory, f"{filename}.npz")
+            ):
+                logger.info(f"File {filename} exists. Skipping.")
+                continue
+
+            sample["image"] = sample["image"].transpose(0, 1).to(device)
+            outputs = superpoint(sample)
+            points = (
+                torch.cat(
+                    (
+                        outputs["keypoints"][0],
+                        outputs["keypoint_scores"][0].unsqueeze(1),
+                    ),
+                    dim=1,
+                )
+                .cpu()
+                .numpy()
+            )
+
+            points = points[points[:, 2] > 0.2]
+
+            numpy.savez_compressed(
+                os.path.join(output_directory, f"{filename}.npz"),
+                pts=points[:top_k, :],
+            )
+
+            if not config["save_images"]:
+                continue
+
+            img_pts = draw_keypoints(
+                sample["image_2D"].numpy().squeeze() * 255,
+                points.transpose(),
+            )
+            saveImg(img_pts, os.path.join(output_directory, f"{filename}.png"))
         except KeyboardInterrupt:
             clear_memory()
 
@@ -123,7 +187,10 @@ def main():
     args = parse_arguments()
     config = load_config(args.config)
     create_logger(**config["logging"])
-    homography_adaptation(config)
+    if config["model"]["name"] == "SuperPointPretrained":
+        homography_adaptation_pretrained(config)
+    else:
+        homography_adaptation(config)
 
 
 if __name__ == "__main__":

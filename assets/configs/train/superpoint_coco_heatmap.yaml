@@ -1,10 +1,12 @@
 data:
     augmentation:
         homographic:
-            enable: false
+            enable_train: false
+            enable_val: false
             valid_border_margin: 0
         photometric:
-            enable: true
+            enable_train: true
+            enable_val: true
             params:
                 additive_gaussian_noise:
                     stddev_range:
@@ -40,9 +42,9 @@ data:
                 sigma: 0.2
     homography_adaptation:
         enable: false
-    labels: ../assets/datasets/coco/train2014/pseudo_labels
+    labels: '../../../datasets/navigation/pitts250k/images/train/pseudo_labels'
     num_parallel_calls: 10
-    path: ../assets/datasets/coco/train2014
+    path: '../../../datasets/navigation/pitts250k/images/train/all'
     preprocessing:
         resize:
         - 240

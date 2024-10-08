@@ -15,7 +15,7 @@ from ultrapoint.utils.utils import flattenDetection
 from ultrapoint.utils.torch_helpers import to_numpy
 
 
-class SuperPointFrontend_torch(object):
+class SuperPointFrontend(object):
     """Wrapper around pytorch net to help with pre and post image processing."""
 
     """

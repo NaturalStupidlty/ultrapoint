@@ -1,11 +1,11 @@
 data:
     dataset: 'ImagesDataset'
-    path: '../../../datasets/coco/train2014'
+    path: '../../../datasets/coco/train2014/'
     labels: null
     cache_in_memory: false
     truncate: null
     num_parallel_calls: 10
-    validation_size: 100
+    validation_size: 1
     preprocessing:
         resize: [240, 320]
     gaussian_label:
@@ -42,18 +42,16 @@ data:
     test_workers: 16
 
 model:
-    name: 'SuperPointNet'
-    params: {}
+    name: 'SuperPointPretrained'
+    detection_threshold: 0.015
+    nms_radius: 4
+    max_num_keypoints: 512
+    remove_borders: 4
+    top_k: 512
     batch_size: 1
     eval_batch_size: 1
-    detection_threshold: 0.015
-    nms: 4
-    nn_thresh: 0.7
-    top_k: 600
-    subpixel:
-        enable: true
 
-pretrained: '../assets/logs/magicpoint_synth_2024-10-07_10:34:55/checkpoints/SuperPointNet_34000_checkpoint.pth.tar'
+pretrained: '../assets/pretrained/superpoint_v6_from_tf.pth'
 skip_existing: false
 save_images: true
 

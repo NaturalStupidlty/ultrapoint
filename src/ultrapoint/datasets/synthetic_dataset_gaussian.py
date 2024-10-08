@@ -57,12 +57,6 @@ class SyntheticDatasetGaussian(data.Dataset):
         self.config = config
         self._data_path = config.get("path", "/tmp")
         self.transform = transforms
-        self.sample_homography = sample_homography
-        self.compute_valid_mask = compute_valid_mask
-        self.inv_warp_image = inv_warp_image
-        self.warp_points = warp_points
-        self.ImgAugTransform = ImgAugTransform
-        self.customizedTransform = customizedTransform
 
         self.enable_photo_train = config["augmentation"]["photometric"]["enable_train"]
         self.enable_homo_train = config["augmentation"]["homographic"]["enable_train"]
@@ -70,6 +64,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         self.enable_photo_val = config["augmentation"]["photometric"]["enable_val"]
 
         self.action = "training" if task == "train" else "validation"
+        self.config["photometric"]["enable"] = config["photometric"][f"enable_{task}"]
         self.gaussian_label = config["gaussian_label"]["enable"]
         self.pool = multiprocessing.Pool(6)
 
@@ -131,10 +126,10 @@ class SyntheticDatasetGaussian(data.Dataset):
                 numpy (H, W)
             :return:
             """
-            augmentation = self.ImgAugTransform(**self.config["augmentation"])
+            augmentation = ImgAugTransform(**self.config["augmentation"])
             img = img[:, :, np.newaxis]
             img = augmentation(img)
-            cusAug = self.customizedTransform()
+            cusAug = customizedTransform()
             img = cusAug(img, **self.config["augmentation"])
             return img
 
@@ -196,7 +191,7 @@ class SyntheticDatasetGaussian(data.Dataset):
                 img = self.transform(img)
             sample["image"] = img
             # sample = {'image': img, 'labels_2D': labels}
-            valid_mask = self.compute_valid_mask(
+            valid_mask = compute_valid_mask(
                 torch.tensor([H, W]), inv_homography=torch.eye(3)
             )
             sample.update({"valid_mask": valid_mask})
@@ -210,7 +205,7 @@ class SyntheticDatasetGaussian(data.Dataset):
             )
             from numpy.linalg import inv
 
-            homography = self.sample_homography(
+            homography = sample_homography(
                 np.array([2, 2]),
                 shift=-1,
                 **self.config["augmentation"]["homographic"]["params"],
@@ -223,15 +218,13 @@ class SyntheticDatasetGaussian(data.Dataset):
             homography = torch.tensor(homography).float()
             inv_homography = homography.inverse()
             img = torch.from_numpy(img)
-            warped_img = self.inv_warp_image(
-                img.squeeze(), inv_homography, mode="bilinear"
-            )
+            warped_img = inv_warp_image(img.squeeze(), inv_homography, mode="bilinear")
             warped_img = warped_img.squeeze().numpy()
             warped_img = warped_img[:, :, np.newaxis]
 
             # labels = torch.from_numpy(labels)
             # warped_labels = self.inv_warp_image(labels.squeeze(), inv_homography, mode='nearest').unsqueeze(0)
-            warped_pnts = self.warp_points(pnts, homography_scaling(homography, H, W))
+            warped_pnts = warp_points(pnts, homography_scaling(homography, H, W))
             warped_pnts = filter_points(warped_pnts, torch.tensor([W, H]))
             # pnts = warped_pnts[:, [1, 0]]
             # pnts_for_gaussian = warped_pnts
@@ -244,7 +237,7 @@ class SyntheticDatasetGaussian(data.Dataset):
             # sample = {'image': warped_img, 'labels_2D': warped_labels}
             sample["image"] = warped_img
 
-            valid_mask = self.compute_valid_mask(
+            valid_mask = compute_valid_mask(
                 torch.tensor([H, W]),
                 inv_homography=inv_homography,
                 erosion_radius=self.config["augmentation"]["homographic"][
@@ -275,7 +268,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         if self.config["warped_pair"]["enable"]:
             from src.ultrapoint.datasets.data_tools import warpLabels
 
-            homography = self.sample_homography(
+            homography = sample_homography(
                 np.array([2, 2]), shift=-1, **self.config["warped_pair"]["params"]
             )
 
@@ -291,7 +284,7 @@ class SyntheticDatasetGaussian(data.Dataset):
 
             # warp original image
             warped_img = img.type(torch.FloatTensor)
-            warped_img = self.inv_warp_image(
+            warped_img = inv_warp_image(
                 warped_img.squeeze(), inv_homography, mode="bilinear"
             ).unsqueeze(0)
             if (self.enable_photo_train == True and self.action == "train") or (
@@ -331,7 +324,7 @@ class SyntheticDatasetGaussian(data.Dataset):
             )
 
             # print('erosion_radius', self.config['warped_pair']['valid_border_margin'])
-            valid_mask = self.compute_valid_mask(
+            valid_mask = compute_valid_mask(
                 torch.tensor([H, W]),
                 inv_homography=inv_homography,
                 erosion_radius=self.config["warped_pair"]["valid_border_margin"],
@@ -409,27 +402,6 @@ class SyntheticDatasetGaussian(data.Dataset):
             sequence_set.append(sample)
         self.samples = sequence_set
 
-    def putGaussianMaps(self, center, accumulate_confid_map):
-        crop_size_y = self.params_transform["crop_size_y"]
-        crop_size_x = self.params_transform["crop_size_x"]
-        stride = self.params_transform["stride"]
-        sigma = self.params_transform["sigma"]
-
-        grid_y = crop_size_y / stride
-        grid_x = crop_size_x / stride
-        start = stride / 2.0 - 0.5
-        xx, yy = np.meshgrid(range(int(grid_x)), range(int(grid_y)))
-        xx = xx * stride + start
-        yy = yy * stride + start
-        d2 = (xx - center[0]) ** 2 + (yy - center[1]) ** 2
-        exponent = d2 / 2.0 / sigma / sigma
-        mask = exponent <= sigma
-        cofid_map = np.exp(-exponent)
-        cofid_map = np.multiply(mask, cofid_map)
-        accumulate_confid_map += cofid_map
-        accumulate_confid_map[accumulate_confid_map > 1.0] = 1.0
-        return accumulate_confid_map
-
     ## util functions
     def gaussian_blur(self, image):
         """
@@ -440,7 +412,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         aug_par = {"photometric": {}}
         aug_par["photometric"]["enable"] = True
         aug_par["photometric"]["params"] = self.config["gaussian_label"]["params"]
-        augmentation = self.ImgAugTransform(**aug_par)
+        augmentation = ImgAugTransform(**aug_par)
         # get label_2D
         # labels = points_to_2D(pnts, H, W)
         image = image[:, :, np.newaxis]
