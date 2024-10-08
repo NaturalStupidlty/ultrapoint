@@ -1,8 +1,7 @@
 data:
     dataset: 'ImagesDataset'
-    val_labels_folder: '../../../datasets/navigation/pitts250k/images/train/pseudo_labels'
     val_images_folder: '../../../datasets/navigation/pitts250k/images/train/all'
-    labels: null
+    val_labels_folder: null # Mandatory key
     cache_in_memory: false
     truncate: null
     num_parallel_calls: 10
