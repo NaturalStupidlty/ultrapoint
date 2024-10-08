@@ -7,7 +7,7 @@ from tqdm import tqdm
 from pathlib import Path
 
 from ultrapoint.models.model_wrap import SuperPointFrontend
-from ultrapoint.models.superpoint_pretrained import SuperPoint
+from ultrapoint.models.superpoint.superpoint_pretrained import SuperPoint
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.draw import draw_keypoints
 from ultrapoint.dataloaders import DataLoadersFactory

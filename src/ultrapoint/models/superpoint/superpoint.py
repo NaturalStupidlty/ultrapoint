@@ -1,7 +1,7 @@
 import torch
 
 from torch.nn import BatchNorm2d
-from src.ultrapoint.models.unet_parts import Down, InConv
+from ultrapoint.models.superpoint.unet_parts import Down, InConv
 from src.ultrapoint.utils.utils import flattenDetection
 
 
@@ -87,14 +87,3 @@ class SuperPointNet(torch.nn.Module):
         output.update(outs)
         self.output = output
         return output
-
-
-def get_matches(deses_SP):
-    from src.ultrapoint.models.model_wrap import PointTracker
-
-    tracker = PointTracker(max_length=2, nn_thresh=1.2)
-    f = lambda x: x.cpu().detach().numpy()
-    matching_mask = tracker.nn_match_two_way(
-        f(deses_SP[0]).T, f(deses_SP[1]).T, nn_thresh=1.2
-    )
-    return matching_mask
