@@ -50,7 +50,7 @@ class SyntheticDatasetGaussian(data.Dataset):
 
     def __init__(
         self,
-        task="train",
+        mode="train",
         transforms=None,
         **config,
     ):
@@ -63,8 +63,10 @@ class SyntheticDatasetGaussian(data.Dataset):
         self.enable_homo_val = config["augmentation"]["homographic"]["enable_val"]
         self.enable_photo_val = config["augmentation"]["photometric"]["enable_val"]
 
-        self.action = "training" if task == "train" else "validation"
-        self.config["photometric"]["enable"] = config["photometric"][f"enable_{task}"]
+        self.action = "training" if mode == "train" else "validation"
+        self.config["augmentation"]["photometric"]["enable"] = config["augmentation"][
+            "photometric"
+        ][f"enable_{mode}"]
         self.gaussian_label = config["gaussian_label"]["enable"]
         self.pool = multiprocessing.Pool(6)
 

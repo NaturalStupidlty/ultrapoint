@@ -52,13 +52,13 @@ def export_descriptors(config, output_directory):
     predictions_folder = os.path.join(output_directory, "predictions")
     os.makedirs(predictions_folder, exist_ok=True)
 
-    test_loader = DataLoadersFactory.create(
-        config, dataset_name=config["data"]["dataset"], mode="test"
+    val_loader = DataLoadersFactory.create(
+        config, dataset_name=config["data"]["dataset"], mode="val"
     )
-    log_data_size(test_loader, config, tag="test")
+    log_data_size(val_loader, config, tag="val")
 
     model_trainer = TrainersFactory.create(config, config["trainer"], output_directory)
-    model_trainer.val_loader = test_loader
+    model_trainer.val_loader = val_loader
 
     # tracker
     tracker = PointTracker(max_length=2, nn_thresh=model_trainer.nn_thresh)
@@ -66,7 +66,7 @@ def export_descriptors(config, output_directory):
     subpixel = config["model"]["subpixel"]["enable"]
     patch_size = config["model"]["subpixel"]["patch_size"]
 
-    for sample_index, sample in tqdm(enumerate(test_loader)):
+    for sample_index, sample in tqdm(enumerate(val_loader)):
         image_0, image_1 = sample["image"], sample["warped_image"]
         points0, descriptors0 = get_keypoints(
             model_trainer, image_0, subpixel, patch_size
@@ -94,7 +94,7 @@ def export_descriptors(config, output_directory):
         np.savez_compressed(path, **predictions)
         logger.debug(f"Saved predictions to: {path}")
 
-    logger.info(f"output pairs: {len(test_loader)}")
+    logger.info(f"output pairs: {len(val_loader)}")
 
 
 def parse_arguments():

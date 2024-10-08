@@ -4,6 +4,7 @@ import torch
 import numpy
 
 from tqdm import tqdm
+from pathlib import Path
 
 from ultrapoint.models.model_wrap import SuperPointFrontend
 from ultrapoint.models.superpoint_pretrained import SuperPoint
@@ -42,7 +43,9 @@ def homography_adaptation(config):
     device = determine_device()
     logger.info(f"Training with device: {device}")
 
-    output_directory = os.path.join(config["data"]["path"], "pseudo_labels")
+    output_directory = os.path.join(
+        Path(config["data"]["val_images_folder"]).parent, "pseudo_labels"
+    )
     os.makedirs(output_directory, exist_ok=True)
 
     top_k = config["model"].get("top_k", -1)
@@ -51,21 +54,21 @@ def homography_adaptation(config):
     iterations = config["data"]["homography_adaptation"]["num"]
     logger.info(f"Homography adaptation iterations: {iterations}")
 
-    test_loader = DataLoadersFactory.create(
-        config, dataset_name=config["data"]["dataset"], mode="test"
+    val_loader = DataLoadersFactory.create(
+        config, dataset_name=config["data"]["dataset"], mode="val"
     )
 
     superpoint_wrapper = SuperPointFrontend(
         config=config,
         weights_path=config["pretrained"],
-        nms_dist=config["model"]["nms"],
+        nms_dist=config["model"]["nms_radius"],
         conf_thresh=conf_thresh,
         nn_thresh=nn_thresh,
         cuda=False,
         device=device,
     )
 
-    for sample in tqdm(test_loader, desc="Generating pseudo labels"):
+    for sample in tqdm(val_loader, desc="Generating pseudo labels"):
         try:
             filename = str(sample["name"][0])
             if config["skip_existing"] and os.path.exists(
@@ -104,7 +107,7 @@ def homography_adaptation(config):
         except KeyboardInterrupt:
             clear_memory()
 
-    logger.info(f"Processed {len(test_loader)} samples.")
+    logger.info(f"Processed {len(val_loader)} samples.")
 
 
 @torch.no_grad()
@@ -118,21 +121,23 @@ def homography_adaptation_pretrained(config):
     device = determine_device()
     logger.info(f"Training with device: {device}")
 
-    output_directory = os.path.join(config["data"]["path"], "pseudo_labels")
+    output_directory = os.path.join(
+        Path(config["data"]["val_images_folder"]).parent, "pseudo_labels"
+    )
     os.makedirs(output_directory, exist_ok=True)
 
     top_k = config["model"].get("top_k", -1)
     iterations = config["data"]["homography_adaptation"]["num"]
     logger.info(f"Homography adaptation iterations: {iterations}")
 
-    test_loader = DataLoadersFactory.create(
-        config, dataset_name=config["data"]["dataset"], mode="test"
+    val_loader = DataLoadersFactory.create(
+        config, dataset_name=config["data"]["dataset"], mode="val"
     )
 
     superpoint = SuperPoint(**config["model"]).to(device)
     superpoint.load_state_dict(torch.load(config["pretrained"]))
 
-    for sample in tqdm(test_loader, desc="Generating pseudo labels"):
+    for sample in tqdm(val_loader, desc="Generating pseudo labels"):
         try:
             filename = str(sample["name"][0])
             if config["skip_existing"] and os.path.exists(
@@ -173,7 +178,7 @@ def homography_adaptation_pretrained(config):
         except KeyboardInterrupt:
             clear_memory()
 
-    logger.info(f"Processed {len(test_loader)} samples.")
+    logger.info(f"Processed {len(val_loader)} samples.")
 
 
 def parse_arguments():

@@ -12,7 +12,7 @@ def train(config: dict, output_directory: str):
         config, config["data"]["dataset"], mode="train"
     )
     val_loader = DataLoadersFactory.create(
-        config, config["data"]["dataset"], mode="test"
+        config, config["data"]["dataset"], mode="val"
     )
     log_data_size(train_loader, config, tag="train")
     log_data_size(val_loader, config, tag="val")

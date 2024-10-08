@@ -74,14 +74,13 @@ class Trainer:
         self.device = device if device is not None else determine_device()
         self.checkpoints_path = os.path.join(save_path, "checkpoints")
         os.makedirs(self.checkpoints_path, exist_ok=True)
-        self._train = True
-        self._eval = True
+        self._train = False
+        self._eval = False
         self.subpixel = False
         self._epoch = 0
         self.loss = 0
         self.n_iter = 0
         self.cell_size = 8
-        self._val_loader = None
         self.max_iter = config["train_iter"]
 
         if self.config["model"]["dense_loss"]["enable"]:
@@ -202,6 +201,7 @@ class Trainer:
 
     @train_loader.setter
     def train_loader(self, loader):
+        self._train = True
         self._train_loader = loader
 
     @property
@@ -210,6 +210,7 @@ class Trainer:
 
     @val_loader.setter
     def val_loader(self, loader):
+        self._eval = True
         self._val_loader = loader
 
     def train(self):

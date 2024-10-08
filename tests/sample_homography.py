@@ -121,7 +121,6 @@ def test_valid_mask():
 
 
 if __name__ == "__main__":
-    # test_sample_homography()
     test_valid_mask()
 
 

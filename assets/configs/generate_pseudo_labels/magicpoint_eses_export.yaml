@@ -1,6 +1,7 @@
 data:
     dataset: 'ImagesDataset'
-    path: '../../../datasets/navigation/pitts250k/images/train/all'
+    val_labels_folder: '../../../datasets/navigation/pitts250k/images/train/pseudo_labels'
+    val_images_folder: '../../../datasets/navigation/pitts250k/images/train/all'
     labels: null
     cache_in_memory: false
     truncate: null
@@ -39,7 +40,7 @@ data:
         valid_border_margin: 0
     
     train_workers: 16
-    test_workers: 16
+    val_workers: 16
 
 model:
     name: 'SuperPointNet'
@@ -47,9 +48,13 @@ model:
     nms_radius: 4
     max_num_keypoints: 1024
     remove_borders: 4
+    nn_thresh: 0.7
     top_k: 1024
     batch_size: 1
     eval_batch_size: 1
+    params: {}
+    subpixel:
+        enable: true
 
 pretrained: '../assets/logs/magicpoint_synth_2024-10-07_10:34:55/checkpoints/SuperPointNet_34000_checkpoint.pth.tar'
 skip_existing: false

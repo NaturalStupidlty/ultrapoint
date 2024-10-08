@@ -91,7 +91,7 @@ data:
         valid_border_margin: 3
 
     train_workers: 16
-    test_workers: 16
+    val_workers: 16
 
 model:
     name: 'SuperPointNet'
@@ -100,7 +100,7 @@ model:
     detector_loss:
         loss_type: 'softmax'
 
-    batch_size: 64
+    batch_size: 4
     eval_batch_size: 16
     learning_rate: 0.001
     kernel_reg: 0.

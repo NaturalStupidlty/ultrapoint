@@ -35,9 +35,7 @@ class SuperPointFrontend(object):
         conf_thresh,
         nn_thresh,
         cuda=False,
-        trained=False,
         device="cpu",
-        grad=False,
     ):
         self.config = config
 

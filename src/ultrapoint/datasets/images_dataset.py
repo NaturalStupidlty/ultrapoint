@@ -29,7 +29,9 @@ class ImagesDataset(Dataset):
         self._config = config
         self._transforms = transforms
         self._mode = mode
-        self._samples = ImageLoader.load_samples(config)
+        self._samples = ImageLoader.load_samples(
+            config[f"{mode}_images_folder"], config[f"{mode}_labels_folder"]
+        )
 
         self._config["augmentation"]["photometric"]["enable"] = config["augmentation"][
             "photometric"
@@ -68,7 +70,7 @@ class ImagesDataset(Dataset):
         H, W = img_o.shape[0], img_o.shape[1]
 
         img_aug = img_o.copy()
-        if (self._enable_photo_train == True and self._mode == "train") or (
+        if (self._enable_photo_train is True and self._mode == "train") or (
             self._enable_photo_val and self._mode == "val"
         ):
             img_aug = imgPhotometric(
@@ -133,7 +135,7 @@ class ImagesDataset(Dataset):
                 {"homographies": homographies, "inv_homographies": inv_homographies}
             )
 
-        if self._config["labels"]:
+        if self._config[f"{self._mode}_labels_folder"]:
             pnts = numpy.load(sample["points"])["pts"]
             labels = points_to_2D(pnts, H, W)
             labels_2D = to_floatTensor(labels[numpy.newaxis, :, :])

@@ -6,10 +6,10 @@ class ImageLoader:
     SUPPORTED_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".gif")
 
     @staticmethod
-    def load_samples(config: dict):
+    def load_samples(images_path: str, labels_path: str = None):
         try:
             # Ensure the path exists
-            base_path = Path(config.get("path", ""))
+            base_path = Path(images_path)
             if not base_path.exists() or not base_path.is_dir():
                 raise FileNotFoundError(
                     f"Image path {base_path} does not exist or is not a directory."
@@ -29,8 +29,8 @@ class ImageLoader:
             image_paths = [str(p) for p in image_paths]
 
             # Load labels if they are specified in the configuration
-            if config.get("labels"):
-                labels_path = Path(config["labels"])
+            if labels_path:
+                labels_path = Path(labels_path)
                 if not labels_path.exists() or not labels_path.is_dir():
                     raise FileNotFoundError(
                         f"Labels path {labels_path} does not exist or is not a directory."

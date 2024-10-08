@@ -1,6 +1,7 @@
 data:
     dataset: 'ImagesDataset'
-    path: '../../../datasets/navigation/pitts250k/images/train/all'
+    val_labels_folder: '../../../datasets/navigation/pitts250k/images/train/pseudo_labels'
+    val_images_folder: '../../../datasets/navigation/pitts250k/images/train/all'
     labels: null
     cache_in_memory: false
     truncate: null
@@ -39,7 +40,7 @@ data:
         valid_border_margin: 0
     
     train_workers: 16
-    test_workers: 16
+    val_workers: 16
 
 model:
     name: 'SuperPointPretrained'

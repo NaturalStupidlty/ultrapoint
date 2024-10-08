@@ -16,7 +16,7 @@ class DataLoadersFactory:
 
     @staticmethod
     def create(config: dict, dataset_name: str, mode: str):
-        assert mode in ["train", "test"], f"Mode {mode} not supported"
+        assert mode in ["train", "val"], f"Mode {mode} not supported"
         assert (
             dataset_name in DataLoadersFactory.SUPPORTED_DATASETS
         ), f"Dataset {dataset_name} not supported"
@@ -34,7 +34,7 @@ class DataLoadersFactory:
         dataset_module = DataLoadersFactory.SUPPORTED_DATASETS[dataset_name]
         dataset = dataset_module(
             transforms=transforms.Compose([transforms.ToTensor()]),
-            task=mode,
+            mode=mode,
             **config["data"],
         )
 

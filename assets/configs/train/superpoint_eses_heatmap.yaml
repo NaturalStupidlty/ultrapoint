@@ -1,4 +1,8 @@
 data:
+    train_labels_folder: '../../../datasets/navigation/pitts250k/images/train/pseudo_labels'
+    train_images_folder: '../../../datasets/navigation/pitts250k/images/train/all'
+    val_labels_folder: '../../../datasets/navigation/pitts250k/images/val/pseudo_labels'
+    val_images_folder: '../../../datasets/navigation/pitts250k/images/val/all'
     augmentation:
         homographic:
             enable_train: false
@@ -31,7 +35,7 @@ data:
                     strength_range:
                     - 0.5
                     - 1.5
-            primitives: all
+            primitives: []
             random_order: true
     cache_in_memory: false
     dataset: ImagesDataset
@@ -42,14 +46,12 @@ data:
                 sigma: 0.2
     homography_adaptation:
         enable: false
-    labels: '../../../datasets/navigation/pitts250k/images/train/pseudo_labels'
     num_parallel_calls: 10
-    path: '../../../datasets/navigation/pitts250k/images/train/all'
     preprocessing:
         resize:
         - 240
         - 320
-    test_workers: 16
+    val_workers: 16
     train_workers: 16
     truncate: null
     validation_size: 100
@@ -84,9 +86,8 @@ model:
     eval_batch_size: 8
     lambda_loss: 1
     learning_rate: 0.0001
-    name: SuperPointNet
+    name: "SuperPointNet"
     nms: 4
-    nn_thresh: 0.7
     other_settings: train 2d, gauss 0.2
     params: {}
     sparse_loss:
@@ -99,7 +100,7 @@ model:
             num_matching_attempts: 1000
     subpixel:
         enable: false
-        loss_func: subpixel_loss_no_argmax
+        loss_func: "subpixel_loss_no_argmax"
         params:
             subpixel_channel: 2
         settings: predict flow directly
@@ -110,6 +111,6 @@ save_interval: 2000
 seed: 0
 tensorboard_interval: 200
 train_iter: 200000
-trainer: TrainerHeatmap
+trainer: "TrainerHeatmap"
 validation_interval: 2000
 validation_size: 5
