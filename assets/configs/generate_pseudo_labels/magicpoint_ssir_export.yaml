@@ -1,6 +1,6 @@
 data:
     dataset: 'ImagesDataset'
-    val_images_folder: '../../../datasets/navigation/pitts250k/images/val/all'
+    val_images_folder: '../../../datasets/navigation/ss/ir/train/all'
     val_labels_folder: null # Mandatory key
     cache_in_memory: false
     truncate: null
@@ -42,18 +42,22 @@ data:
     val_workers: 16
 
 model:
-    name: 'SuperPointPretrained'
+    name: 'SuperPointNet'
     detection_threshold: 0.005
     nms_radius: 4
     max_num_keypoints: 1024
     remove_borders: 4
+    nn_thresh: 0.7
     top_k: 1024
     batch_size: 1
     eval_batch_size: 1
+    params: {}
+    subpixel:
+        enable: true
 
-pretrained: '../assets/pretrained/superpoint_v6_from_tf.pth'
-skip_existing: true
-save_images: false
+pretrained: '../assets/logs/magicpoint_synth_2024-10-07_10:34:55/checkpoints/SuperPointNet_34000_checkpoint.pth.tar'
+skip_existing: false
+save_images: true
 
 seed: 0
 precision: medium

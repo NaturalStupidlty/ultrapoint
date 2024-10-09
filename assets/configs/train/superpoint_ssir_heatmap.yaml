@@ -1,8 +1,8 @@
 data:
-    train_labels_folder: '../../../datasets/navigation/pitts250k/images/train/pseudo_labels'
-    train_images_folder: '../../../datasets/navigation/pitts250k/images/train/all'
-    val_labels_folder: '../../../datasets/navigation/pitts250k/images/val/pseudo_labels'
-    val_images_folder: '../../../datasets/navigation/pitts250k/images/val/all'
+    train_labels_folder: '../../../datasets/navigation/ss/ir/train/pseudo_labels'
+    train_images_folder: '../../../datasets/navigation/ss/ir/train/all'
+    val_labels_folder: '../../../datasets/navigation/ss/ir/val/pseudo_labels'
+    val_images_folder: '../../../datasets/navigation/ss/ir/val/all'
     augmentation:
         homographic:
             enable_train: false
