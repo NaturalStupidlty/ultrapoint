@@ -45,66 +45,54 @@ class Trainer:
         :param save_path:
         :param device:
         """
-        self.config = config
-        self.device = device if device is not None else determine_device()
-        self.checkpoints_path = os.path.join(save_path, "checkpoints")
-        os.makedirs(self.checkpoints_path, exist_ok=True)
-        self._train = False
-        self._eval = False
-        self.subpixel = False
-        self._epoch = 0
-        self.loss = 0
-        self._iteration = 0
-        self.cell_size = 8
+        self._config = config
         self._max_iterations = config["train_iter"]
-        self._train_loader = None
-        self._val_loader = None
         self._batch_size = config["model"]["batch_size"]
 
-        if self.config["model"]["dense_loss"]["enable"]:
-            # original superpoint paper uses dense loss
+        self._device = device if device is not None else determine_device()
+        logger.info(f"Training with device: {self._device}")
+
+        self._checkpoints_path = os.path.join(save_path, "checkpoints")
+        os.makedirs(self._checkpoints_path, exist_ok=True)
+
+        self._train = False
+        self._eval = False
+        self._epoch = 0
+        self._loss = 0
+        self._iteration = 0
+        self._cell_size = 8
+        self._train_loader = None
+        self._val_loader = None
+
+        # TODO: loss factory
+        if self._config["model"]["dense_loss"]["enable"]:
             logger.info("Using dense loss")
             from src.ultrapoint.utils.utils import descriptor_loss
 
-            self.desc_params = self.config["model"]["dense_loss"]["params"]
-            self.descriptor_loss = descriptor_loss
-            self.desc_loss_type = "dense"
-        elif self.config["model"]["sparse_loss"]["enable"]:
-            # our sparse loss has similar performace, more efficient
+            self._desc_params = self._config["model"]["dense_loss"]["params"]
+            self._descriptor_loss = descriptor_loss
+            self._desc_loss_type = "dense"
+        elif self._config["model"]["sparse_loss"]["enable"]:
             logger.info("Using sparse loss")
-            self.desc_params = self.config["model"]["sparse_loss"]["params"]
             from src.ultrapoint.utils.loss_functions.sparse_loss import (
                 batch_descriptor_loss_sparse,
             )
 
-            self.descriptor_loss = batch_descriptor_loss_sparse
-            self.desc_loss_type = "sparse"
-
-        if self.config["model"]["subpixel"]["enable"]:
-            # deprecated: only for testing subpixel prediction
-            self.subpixel = True
-
-            def get_func(path, name):
-                logger.info("=> from %s import %s", path, name)
-                mod = __import__("{}".format(path), fromlist=[""])
-                return getattr(mod, name)
-
-            self.subpixel_loss_func = get_func(
-                "utils.losses", self.config["model"]["subpixel"]["loss_func"]
-            )
-
-        save_config(os.path.join(save_path, "config.yaml"), config)
-        logger.info("Loaded TrainModelFrontend")
+            self._desc_params = self._config["model"]["sparse_loss"]["params"]
+            self._descriptor_loss = batch_descriptor_loss_sparse
+            self._desc_loss_type = "sparse"
 
         clear_memory()
         make_deterministic(config["seed"])
         set_precision(config["precision"])
-        device = determine_device() if device is None else device
-        logger.info(f"Training with device: {device}")
+
+        self._load_model()
+        logger.info(f"Loaded model: {self.net.__class__.__name__}")
+
+        self._tensorboard_logger = TensorboardLogger(save_path, config)
 
         self._log_important_config()
-        self._load_model()
-        self._tensorboard_logger = TensorboardLogger(save_path, config)
+        save_config(os.path.join(save_path, "config.yaml"), config)
 
     def train(self):
         """
@@ -124,18 +112,18 @@ class Trainer:
                     loss = self.process_sample(sample_train, self._iteration, "train")
                     running_losses.append(loss)
 
-                    if self._iteration % self.config["save_interval"] == 0:
+                    if self._iteration % self._config["save_interval"] == 0:
                         logger.info(f"Current iteration: {self._iteration}")
                         self.save()
 
                     if (
                         self._eval
-                        and self._iteration % self.config["validation_interval"] == 1
+                        and self._iteration % self._config["validation_interval"] == 1
                     ):
                         logger.info("Validating...")
                         for i, sample_val in enumerate(
                             itertools.islice(
-                                self.val_loader, self.config.get("validation_size")
+                                self.val_loader, self._config.get("validation_size")
                             )
                         ):
                             self.process_sample(sample_val, self._iteration + i, "val")
@@ -158,7 +146,7 @@ class Trainer:
         :return:
         """
         filename = (
-            f"{self.config['model']['name']}_{self._iteration}_checkpoint.pth.tar"
+            f"{self._config['model']['name']}_{self._iteration}_checkpoint.pth.tar"
         )
         torch.save(
             {
@@ -166,9 +154,9 @@ class Trainer:
                 "n_iter": self._iteration,
                 "model_state_dict": self.net.module.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
-                "loss": self.loss,
+                "loss": self._loss,
             },
-            os.path.join(self.checkpoints_path, filename),
+            os.path.join(self._checkpoints_path, filename),
         )
         logger.info(f"Saved checkpoint to {filename}")
 
@@ -191,32 +179,32 @@ class Trainer:
         self._val_loader = loader
 
     def _log_important_config(self):
-        logger.info(f"Learning rate: {self.config['model']['learning_rate']}")
-        logger.info(f"Lambda loss: {self.config['model']['lambda_loss']}")
+        logger.info(f"Learning rate: {self._config['model']['learning_rate']}")
+        logger.info(f"Lambda loss: {self._config['model']['lambda_loss']}")
         logger.info(
-            f"Detection threshold: {self.config['model']['detection_threshold']}",
+            f"Detection threshold: {self._config['model']['detection_threshold']}",
         )
-        logger.info(f"Batch size: {self.config['model']['batch_size']}")
-        logger.info(f"Descriptor: {self.desc_loss_type}")
-        for item in list(self.desc_params):
-            logger.info(f"{item} : {self.desc_params[item]}")
+        logger.info(f"Batch size: {self._config['model']['batch_size']}")
+        logger.info(f"Descriptor: {self._desc_loss_type}")
+        for item in list(self._desc_params):
+            logger.info(f"{item} : {self._desc_params[item]}")
 
     def _load_model(self):
         """
         Load model from name and params, and initialize or load optimizer.
         :return:
         """
-        logger.info(f"Model: {self.config['model']['name']}")
+        logger.info(f"Model: {self._config['model']['name']}")
 
-        model_params = self.config["model"]["params"]
-        model_name = self.config["model"]["name"]
+        model_params = self._config["model"]["params"]
+        model_name = self._config["model"]["name"]
 
-        if self.config["pretrained"] is not None:
-            checkpoint = torch.load(self.config["pretrained"])
+        if self._config["pretrained"] is not None:
+            checkpoint = torch.load(self._config["pretrained"])
             state_dict = checkpoint["model_state_dict"]
             self.epoch = checkpoint.get("epoch", 0)
             self._iteration = checkpoint.get("n_iter", 0)
-            self.loss = checkpoint.get("loss", 0)
+            self._loss = checkpoint.get("loss", 0)
             optimizer_state_dict = checkpoint["optimizer_state_dict"]
         else:
             logger.info("Training model from scratch")
@@ -225,7 +213,7 @@ class Trainer:
 
         self.net = ModelsFactory.create(
             model_name=model_name, state=state_dict, **model_params
-        ).to(self.device)
+        ).to(self._device)
         self._init_optimizer(optimizer_state_dict)
 
         # Multi-GPU support
@@ -241,7 +229,7 @@ class Trainer:
         else:
             self.optimizer = optim.Adam(
                 self.net.parameters(),
-                lr=self.config["model"]["learning_rate"],
+                lr=self._config["model"]["learning_rate"],
                 betas=(0.9, 0.999),
             )
 

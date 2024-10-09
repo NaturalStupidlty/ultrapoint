@@ -29,7 +29,7 @@ class TrainerSubpixel(Trainer):
 
     def process_sample(self, sample, iteration=0, train=False):
         task = "train" if train else "val"
-        tb_interval = self.config["tensorboard_interval"]
+        tb_interval = self._config["tensorboard_interval"]
 
         losses, tb_imgs, tb_hist = {}, {}, {}
         ## get the inputs
@@ -57,17 +57,17 @@ class TrainerSubpixel(Trainer):
         label_idx = labels_2D[...].nonzero()
         from src.ultrapoint.utils.losses import extract_patches
 
-        patch_size = self.config["model"]["params"]["patch_size"]
+        patch_size = self._config["model"]["params"]["patch_size"]
         patches = extract_patches(
-            label_idx.to(self.device), img.to(self.device), patch_size=patch_size
+            label_idx.to(self._device), img.to(self._device), patch_size=patch_size
         )  # tensor [N, patch_size, patch_size]
         # patches = extract_patches(label_idx.to(device), labels_2D.to(device), patch_size=15) # tensor [N, patch_size, patch_size]
         # print("patches: ", patches.shape)
 
-        patch_channels = self.config["model"]["params"].get("subpixel_channel", 1)
+        patch_channels = self._config["model"]["params"].get("subpixel_channel", 1)
         if patch_channels == 2:
             patch_heat = extract_patches(
-                label_idx.to(self.device), img.to(self.device), patch_size=patch_size
+                label_idx.to(self._device), img.to(self._device), patch_size=patch_size
             )  # tensor [N, patch_size, patch_size]
 
         def label_to_points(labels_res, points):
@@ -82,7 +82,7 @@ class TrainerSubpixel(Trainer):
         num_patches_max = 500
         # feed into the network
         pred_res = self.net(
-            patches[:num_patches_max, ...].to(self.device)
+            patches[:num_patches_max, ...].to(self._device)
         )  # tensor [1, N, 2]
 
         # loss function
@@ -91,7 +91,7 @@ class TrainerSubpixel(Trainer):
             loss = torch.norm(loss, p=2, dim=-1).mean()
             return loss
 
-        loss = get_loss(points_res[:num_patches_max, ...].to(self.device), pred_res)
+        loss = get_loss(points_res[:num_patches_max, ...].to(self._device), pred_res)
         self.loss = loss
 
         losses.update({"loss": loss})

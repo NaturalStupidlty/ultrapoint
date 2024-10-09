@@ -22,7 +22,7 @@ def get_keypoints(model, img, subpixel: bool = None, patch_size: int = None):
     assert subpixel is None or patch_size is not None
 
     # heatmap: numpy [batch, 1, H, W]
-    heatmap = model.run(img.to(model.device))
+    heatmap = model.run(img.to(model._device))
     points = model.heatmap_to_pts(heatmap)
 
     if subpixel:

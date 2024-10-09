@@ -13,8 +13,6 @@ from ultrapoint.loggers.loguru import log_losses
 
 class TrainerHeatmap(Trainer):
     """
-    Wrapper around pytorch net to help with pre and post image processing.
-
     heatmap: torch (batch_size, H, W, 1)
     dense_desc: torch (batch_size, H, W, 256)
     pts: [batch_size, np (N, 3)]
@@ -23,39 +21,7 @@ class TrainerHeatmap(Trainer):
 
     def __init__(self, config, save_path, device=None):
         super().__init__(config, save_path, device)
-        self.config = config
-        logger.info("Loaded TrainModeHeatmap")
-        logger.info(f"Config: {self.config}")
-
-        # init parameters
-        self.save_path = save_path
-        self._train = True
-        self._eval = True
-        self.cell_size = 8
-        self.subpixel = False
-
-        self.max_iter = config["train_iter"]
-
-        self.gaussian = False
-        if self.config["data"]["gaussian_label"]["enable"]:
-            self.gaussian = True
-
-        if self.config["model"]["dense_loss"]["enable"]:
-            logger.info("Using dense loss")
-            from src.ultrapoint.utils.utils import descriptor_loss
-
-            self.desc_params = self.config["model"]["dense_loss"]["params"]
-            self.descriptor_loss = descriptor_loss
-            self.desc_loss_type = "dense"
-        elif self.config["model"]["sparse_loss"]["enable"]:
-            logger.info("Using sparse loss")
-            self.desc_params = self.config["model"]["sparse_loss"]["params"]
-            from src.ultrapoint.utils.loss_functions.sparse_loss import (
-                batch_descriptor_loss_sparse,
-            )
-
-            self.descriptor_loss = batch_descriptor_loss_sparse
-            self.desc_loss_type = "sparse"
+        self._gaussian = config["data"]["gaussian_label"]["enable"]
 
     def detector_loss(self, input, target, mask=None, loss_type="softmax"):
         """
@@ -94,8 +60,8 @@ class TrainerHeatmap(Trainer):
 
         to_floatTensor = lambda x: torch.tensor(x).type(torch.FloatTensor)
 
-        tb_interval = self.config["tensorboard_interval"]
-        if_warp = self.config["data"]["warped_pair"]["enable"]
+        tb_interval = self._config["tensorboard_interval"]
+        if_warp = self._config["data"]["warped_pair"]["enable"]
 
         self.scalar_dict, self.images_dict, self.hist_dict = {}, {}, {}
         ## get the inputs
@@ -110,10 +76,10 @@ class TrainerHeatmap(Trainer):
         # variables
         batch_size, H, W = img.shape[0], img.shape[2], img.shape[3]
         self.batch_size = batch_size
-        det_loss_type = self.config["model"]["detector_loss"]["loss_type"]
+        det_loss_type = self._config["model"]["detector_loss"]["loss_type"]
         # print("batch_size: ", batch_size)
-        Hc = H // self.cell_size
-        Wc = W // self.cell_size
+        Hc = H // self._cell_size
+        Wc = W // self._cell_size
 
         # warped images
         # img_warp, labels_warp_2D, mask_warp_2D = sample['warped_img'].to(self.device), \
@@ -138,24 +104,24 @@ class TrainerHeatmap(Trainer):
         # forward + backward + optimize
         if task == "train":
             # print("img: ", img.shape, ", img_warp: ", img_warp.shape)
-            outs = self.net(img.to(self.device))
+            outs = self.net(img.to(self._device))
             semi, coarse_desc = outs["semi"], outs["desc"]
             if if_warp:
-                outs_warp = self.net(img_warp.to(self.device))
+                outs_warp = self.net(img_warp.to(self._device))
                 semi_warp, coarse_desc_warp = outs_warp["semi"], outs_warp["desc"]
         else:
             with torch.no_grad():
-                outs = self.net(img.to(self.device))
+                outs = self.net(img.to(self._device))
                 semi, coarse_desc = outs["semi"], outs["desc"]
                 if if_warp:
-                    outs_warp = self.net(img_warp.to(self.device))
+                    outs_warp = self.net(img_warp.to(self._device))
                     semi_warp, coarse_desc_warp = outs_warp["semi"], outs_warp["desc"]
                 pass
 
         # detector loss
         from src.ultrapoint.utils.utils import labels2Dto3D
 
-        if self.gaussian:
+        if self._gaussian:
             labels_2D = sample["labels_2D_gaussian"]
             if if_warp:
                 warped_labels = sample["warped_labels_gaussian"]
@@ -171,62 +137,66 @@ class TrainerHeatmap(Trainer):
             add_dustbin = True
 
         labels_3D = labels2Dto3D(
-            labels_2D.to(self.device), cell_size=self.cell_size, add_dustbin=add_dustbin
+            labels_2D.to(self._device),
+            cell_size=self._cell_size,
+            add_dustbin=add_dustbin,
         ).float()
-        mask_3D_flattened = self.get_masks(mask_2D, self.cell_size, device=self.device)
+        mask_3D_flattened = self.get_masks(
+            mask_2D, self._cell_size, device=self._device
+        )
         loss_det = self.detector_loss(
             input=outs["semi"],
-            target=labels_3D.to(self.device),
-            mask=mask_3D_flattened.to(self.device),
+            target=labels_3D.to(self._device),
+            mask=mask_3D_flattened.to(self._device),
             loss_type=det_loss_type,
         )
         # warp
         if if_warp:
             labels_3D = labels2Dto3D(
-                warped_labels.to(self.device),
-                cell_size=self.cell_size,
+                warped_labels.to(self._device),
+                cell_size=self._cell_size,
                 add_dustbin=add_dustbin,
             ).float()
             mask_3D_flattened = self.get_masks(
-                mask_warp_2D, self.cell_size, device=self.device
+                mask_warp_2D, self._cell_size, device=self._device
             )
             loss_det_warp = self.detector_loss(
                 input=outs_warp["semi"],
-                target=labels_3D.to(self.device),
-                mask=mask_3D_flattened.to(self.device),
+                target=labels_3D.to(self._device),
+                mask=mask_3D_flattened.to(self._device),
                 loss_type=det_loss_type,
             )
         else:
-            loss_det_warp = torch.tensor([0]).float().to(self.device)
+            loss_det_warp = torch.tensor([0]).float().to(self._device)
 
         ## get labels, masks, loss for detection
-        # labels3D_in_loss = self.getLabels(labels_2D, self.cell_size, device=self.device)
-        # mask_3D_flattened = self.getMasks(mask_2D, self.cell_size, device=self.device)
+        # labels3D_in_loss = self.getLabels(labels_2D, self._cell_size, device=self.device)
+        # mask_3D_flattened = self.getMasks(mask_2D, self._cell_size, device=self.device)
         # loss_det = self.get_loss(semi, labels3D_in_loss, mask_3D_flattened, device=self.device)
 
         ## warping
-        # labels3D_in_loss = self.getLabels(labels_warp_2D, self.cell_size, device=self.device)
-        # mask_3D_flattened = self.getMasks(mask_warp_2D, self.cell_size, device=self.device)
+        # labels3D_in_loss = self.getLabels(labels_warp_2D, self._cell_size, device=self.device)
+        # mask_3D_flattened = self.getMasks(mask_warp_2D, self._cell_size, device=self.device)
         # loss_det_warp = self.get_loss(semi_warp, labels3D_in_loss, mask_3D_flattened, device=self.device)
 
         mask_desc = mask_3D_flattened.unsqueeze(1)
-        lambda_loss = self.config["model"]["lambda_loss"]
+        lambda_loss = self._config["model"]["lambda_loss"]
         # print("mask_desc: ", mask_desc.shape)
         # print("mask_warp_2D: ", mask_warp_2D.shape)
 
         # descriptor loss
         if lambda_loss > 0:
             assert if_warp == True, "need a pair of images"
-            loss_desc, mask, positive_dist, negative_dist = self.descriptor_loss(
+            loss_desc, mask, positive_dist, negative_dist = self._descriptor_loss(
                 coarse_desc,
                 coarse_desc_warp,
                 mat_H,
                 mask_valid=mask_desc,
-                device=self.device,
-                **self.desc_params,
+                device=self._device,
+                **self._desc_params,
             )
         else:
-            ze = torch.tensor([0]).to(self.device)
+            ze = torch.tensor([0]).to(self._device)
             loss_desc, positive_dist, negative_dist = ze, ze, ze
 
         loss = loss_det + loss_det_warp
@@ -267,7 +237,7 @@ class TrainerHeatmap(Trainer):
                 )
                 loss_res_warp = (outs_res_warp["loss"] ** 2).mean()
             else:
-                loss_res_warp = torch.tensor([0]).to(self.device)
+                loss_res_warp = torch.tensor([0]).to(self._device)
             loss_res = loss_res_ori + loss_res_warp
             # print("loss_res requires_grad: ", loss_res.requires_grad)
             loss += loss_res
@@ -367,7 +337,7 @@ class TrainerHeatmap(Trainer):
             # residuals
             from src.ultrapoint.utils.losses import do_log
 
-            if self.gaussian:
+            if self._gaussian:
                 # original: gt
                 self.get_residual_loss(
                     sample["labels_2D"],
@@ -421,7 +391,7 @@ class TrainerHeatmap(Trainer):
         if abs(labels_2D).sum() == 0:
             return
         outs_res = self.pred_soft_argmax(
-            labels_2D, heatmap, labels_res, patch_size=5, device=self.device
+            labels_2D, heatmap, labels_res, patch_size=5, device=self._device
         )
         self.hist_dict[name + "_resi_loss_x"] = outs_res["loss"][:, 0]
         self.hist_dict[name + "_resi_loss_y"] = outs_res["loss"][:, 1]
