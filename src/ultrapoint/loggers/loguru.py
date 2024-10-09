@@ -19,6 +19,17 @@ def log_data_size(train_loader: DataLoader, config: dict, tag: str = "train") ->
     )
 
 
+def log_losses(losses, task: str = "training"):
+    """
+    # print loss for tracking training
+    :param losses:
+    :param task:
+    :return:
+    """
+    for element in list(losses):
+        logger.info(f"{task} - {element}: {losses[element].item()}")
+
+
 def log_dict_attr(dictionary, attr=None):
     for item in list(dictionary):
         d = dictionary[item]

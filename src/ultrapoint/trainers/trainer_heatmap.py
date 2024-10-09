@@ -1,9 +1,3 @@
-"""This is the main training interface using heatmap trick
-
-Author: You-Yi Jau, Rui Zhu
-Date: 2019/12/12
-"""
-
 import numpy
 import torch
 import torch.optim
@@ -11,34 +5,16 @@ import torch.nn as nn
 import torch.utils.data
 
 from loguru import logger
-from src.ultrapoint.utils.utils import flattenDetection
+from ultrapoint.utils.utils import flattenDetection
 from ultrapoint.utils.utils import precisionRecall_torch
 from ultrapoint.trainers.trainer import Trainer
-
-
-def thd_img(img, thd=0.015):
-    img[img < thd] = 0
-    img[img >= thd] = 1
-    return img
-
-
-def toNumpy(tensor):
-    return tensor.detach().cpu().numpy()
-
-
-def img_overlap(img_r, img_g, img_gray):  # img_b repeat
-    img = numpy.concatenate((img_gray, img_gray, img_gray), axis=0)
-    img[0, :, :] += img_r[0, :, :]
-    img[1, :, :] += img_g[0, :, :]
-    img[img > 1] = 1
-    img[img < 0] = 0
-    return img
+from ultrapoint.loggers.loguru import log_losses
 
 
 class TrainerHeatmap(Trainer):
-    """Wrapper around pytorch net to help with pre and post image processing."""
-
     """
+    Wrapper around pytorch net to help with pre and post image processing.
+
     heatmap: torch (batch_size, H, W, 1)
     dense_desc: torch (batch_size, H, W, 256)
     pts: [batch_size, np (N, 3)]
@@ -106,17 +82,18 @@ class TrainerHeatmap(Trainer):
             loss = loss / (mask.sum() + 1e-10)
         return loss
 
-    def train_val_sample(self, sample, n_iter=0, train=False):
+    def process_sample(self, sample, iteration=0, task="val"):
         """
         # key function
         :param sample:
-        :param n_iter:
+        :param iteration:
         :param train:
         :return:
         """
+        assert task in ["train", "val"], "task should be either train or val"
+
         to_floatTensor = lambda x: torch.tensor(x).type(torch.FloatTensor)
 
-        task = "train" if train else "val"
         tb_interval = self.config["tensorboard_interval"]
         if_warp = self.config["data"]["warped_pair"]["enable"]
 
@@ -159,7 +136,7 @@ class TrainerHeatmap(Trainer):
         self.optimizer.zero_grad()
 
         # forward + backward + optimize
-        if train:
+        if task == "train":
             # print("img: ", img.shape, ", img_warp: ", img_warp.shape)
             outs = self.net(img.to(self.device))
             semi, coarse_desc = outs["semi"], outs["desc"]
@@ -196,7 +173,7 @@ class TrainerHeatmap(Trainer):
         labels_3D = labels2Dto3D(
             labels_2D.to(self.device), cell_size=self.cell_size, add_dustbin=add_dustbin
         ).float()
-        mask_3D_flattened = self.getMasks(mask_2D, self.cell_size, device=self.device)
+        mask_3D_flattened = self.get_masks(mask_2D, self.cell_size, device=self.device)
         loss_det = self.detector_loss(
             input=outs["semi"],
             target=labels_3D.to(self.device),
@@ -210,7 +187,7 @@ class TrainerHeatmap(Trainer):
                 cell_size=self.cell_size,
                 add_dustbin=add_dustbin,
             ).float()
-            mask_3D_flattened = self.getMasks(
+            mask_3D_flattened = self.get_masks(
                 mask_warp_2D, self.cell_size, device=self.device
             )
             loss_det_warp = self.detector_loss(
@@ -258,7 +235,7 @@ class TrainerHeatmap(Trainer):
 
         ##### try to minimize the error ######
         add_res_loss = False
-        if add_res_loss and n_iter % 10 == 0:
+        if add_res_loss and iteration % 10 == 0:
             heatmap_org = flattenDetection(semi)
             heatmap_org_nms_batch = self.heatmap_to_nms(
                 self.images_dict, heatmap_org, name="heatmap_org"
@@ -314,13 +291,13 @@ class TrainerHeatmap(Trainer):
 
         self.input_to_imgDict(sample, self.images_dict)
 
-        if train:
+        if task == "train":
             loss.backward()
             self.optimizer.step()
 
-        if n_iter % tb_interval == 0 or task == "val":
+        if iteration % tb_interval == 0 or task == "val":
             logger.info(
-                f"current iteration: {n_iter}, tensorboard_interval: {tb_interval}",
+                f"current iteration: {iteration}, tensorboard_interval: {tb_interval}",
             )
 
             # add clean map to tensorboard
@@ -407,48 +384,19 @@ class TrainerHeatmap(Trainer):
                         name="warped_gt",
                     )
 
-            # from utils.losses import do_log
-            # patches_log = do_log(patches)
-
-            # original: pred
-            ## check the loss on given labels!
-            # self.get_residual_loss(
-            #     sample["labels_2D"]
-            #     * to_floatTensor(heatmap_org_nms_batch).unsqueeze(1),
-            #     heatmap_org,
-            #     sample["labels_res"],
-            #     name="original_pred",
-            # )
-            # print("heatmap_org_nms_batch: ", heatmap_org_nms_batch.shape)
-            # get_residual_loss(to_floatTensor(heatmap_org_nms_batch).unsqueeze(1), heatmap_org,
-            # sample['labels_res'], name='original_pred')
-            # warped: pred
-            # self.get_residual_loss(
-            #     sample["warped_labels"]
-            #     * to_floatTensor(heatmap_warp_nms_batch).unsqueeze(1),
-            #     heatmap_warp,
-            #     sample["warped_res"],
-            #     name="warped_pred",
-            # )
-            # get_residual_loss(to_floatTensor(heatmap_warp_nms_batch).unsqueeze(1), heatmap_warp,
-            # sample['warped_res'], name='warped_pred')
-
-            # precision, recall
-            # pr_mean = self.batch_precision_recall(
-            #     to_floatTensor(heatmap_warp_nms_batch[:, numpy.newaxis, ...]),
-            #     sample["warped_labels"],
-            # )
             pr_mean = self.batch_precision_recall(
                 to_floatTensor(heatmap_org_nms_batch[:, numpy.newaxis, ...]),
                 sample["labels_2D"],
             )
             self.scalar_dict.update(pr_mean)
 
-            self.printLosses(self.scalar_dict, task)
-            self.tb_images_dict(task, self.images_dict, max_img=2)
-            self.tb_hist_dict(task, self.hist_dict)
+            log_losses(self.scalar_dict, task)
+            self._tensorboard_logger.tb_images_dict(
+                iteration, task, self.images_dict, max_img=2
+            )
+            self._tensorboard_logger.tb_hist_dict(iteration, task, self.hist_dict)
 
-        self.tb_scalar_dict(self.scalar_dict, task)
+        self._tensorboard_logger.tb_scalar_dict(iteration, self.scalar_dict, task)
 
         return loss.item()
 
@@ -595,11 +543,22 @@ class TrainerHeatmap(Trainer):
         """
         from src.ultrapoint.utils.utils import getPtsFromHeatmap
 
-        # nms_dist = self.config['model']['nms']
-        # conf_thresh = self.config['model']['detection_threshold']
         heatmap = heatmap.squeeze()
-        # print("heatmap: ", heatmap.shape)
         pts_nms = getPtsFromHeatmap(heatmap, conf_thresh, nms_dist)
         semi_thd_nms_sample = numpy.zeros_like(heatmap)
         semi_thd_nms_sample[pts_nms[1, :].astype(int), pts_nms[0, :].astype(int)] = 1
         return semi_thd_nms_sample
+
+    @staticmethod
+    def input_to_imgDict(sample, tb_images_dict):
+        # for e in list(sample):
+        #     print("sample[e]", sample[e].shape)
+        #     if (sample[e]).dim() == 4:
+        #         tb_images_dict[e] = sample[e]
+        for e in list(sample):
+            element = sample[e]
+            if type(element) is torch.Tensor:
+                if element.dim() == 4:
+                    tb_images_dict[e] = element
+                # print("shape of ", i, " ", element.shape)
+        return tb_images_dict

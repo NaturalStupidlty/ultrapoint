@@ -27,7 +27,7 @@ class TrainerSubpixel(Trainer):
         self._train = True
         self._eval = True
 
-    def train_val_sample(self, sample, n_iter=0, train=False):
+    def process_sample(self, sample, iteration=0, train=False):
         task = "train" if train else "val"
         tb_interval = self.config["tensorboard_interval"]
 
@@ -124,9 +124,9 @@ class TrainerSubpixel(Trainer):
             self.optimizer.step()
 
         self.tb_scalar_dict(losses, task)
-        if n_iter % tb_interval == 0 or task == "val":
+        if iteration % tb_interval == 0 or task == "val":
             logging.info(
-                f"current iteration: {n_iter}, tensorboard_interval: {tb_interval}"
+                f"current iteration: {iteration}, tensorboard_interval: {tb_interval}"
             )
             self.tb_images_dict(task, tb_imgs, max_img=5)
             self.tb_hist_dict(task, tb_hist)
@@ -141,12 +141,12 @@ class TrainerSubpixel(Trainer):
                 self.writer.add_image(
                     task + "-" + element + "/%d" % idx,
                     tb_imgs[element][idx, ...],
-                    self.n_iter,
+                    self._iteration,
                 )
 
     def tb_hist_dict(self, task, tb_dict):
         for element in list(tb_dict):
             self.writer.add_histogram(
-                task + "-" + element, tb_dict[element], self.n_iter
+                task + "-" + element, tb_dict[element], self._iteration
             )
         pass

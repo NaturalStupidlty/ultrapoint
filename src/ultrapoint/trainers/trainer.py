@@ -4,22 +4,18 @@ import torch
 import torch.optim
 import torch.nn as nn
 import torch.utils.data
-import numpy as np
 import torch.optim as optim
 
 from typing import Union
 from tqdm import tqdm
 from loguru import logger
-from tensorboardX import SummaryWriter
+
+from ultrapoint.loggers.tensorboard import TensorboardLogger
 from ultrapoint.models.models_factory import ModelsFactory
-from ultrapoint.utils.torch_helpers import to_numpy
 from ultrapoint.utils.utils import (
     labels2Dto3D,
-    flattenDetection,
     labels2Dto3D_flattened,
 )
-from ultrapoint.utils.utils import saveImg
-from ultrapoint.utils.utils import precisionRecall_torch
 from ultrapoint.utils.torch_helpers import (
     determine_device,
     clear_memory,
@@ -29,35 +25,15 @@ from ultrapoint.utils.torch_helpers import (
 from ultrapoint.utils.config_helpers import save_config
 
 
-def thd_img(img, thd=0.015):
-    """
-    thresholding the image.
-    :param img:
-    :param thd:
-    :return:
-    """
-    img[img < thd] = 0
-    img[img >= thd] = 1
-    return img
-
-
-def img_overlap(img_r, img_g, img_gray):  # img_b repeat
-    img = np.concatenate((img_gray, img_gray, img_gray), axis=0)
-    img[0, :, :] += img_r[0, :, :]
-    img[1, :, :] += img_g[0, :, :]
-    img[img > 1] = 1
-    img[img < 0] = 0
-    return img
-
-
 class Trainer:
     """
-    This is the base class for training classes. Wrap pytorch net to help training process.
+    This is the base class for training classes.
+    Wrap pytorch net to help training process.
     """
 
     def __init__(self, config, save_path: str, device: Union[str, torch.device] = None):
         """
-        ## default dimension:
+        default dimension:
             heatmap: torch (batch_size, H, W, 1)
             dense_desc: torch (batch_size, H, W, 256)
             pts: [batch_size, np (N, 3)]
@@ -68,7 +44,6 @@ class Trainer:
 
         :param save_path:
         :param device:
-        :param verbose:
         """
         self.config = config
         self.device = device if device is not None else determine_device()
@@ -79,9 +54,12 @@ class Trainer:
         self.subpixel = False
         self._epoch = 0
         self.loss = 0
-        self.n_iter = 0
+        self._iteration = 0
         self.cell_size = 8
-        self.max_iter = config["train_iter"]
+        self._max_iterations = config["train_iter"]
+        self._train_loader = None
+        self._val_loader = None
+        self._batch_size = config["model"]["batch_size"]
 
         if self.config["model"]["dense_loss"]["enable"]:
             # original superpoint paper uses dense loss
@@ -124,79 +102,78 @@ class Trainer:
         device = determine_device() if device is None else device
         logger.info(f"Training with device: {device}")
 
-        self.logImportantConfig()
-        self.writer = SummaryWriter(save_path)
-        self._load()
+        self._log_important_config()
+        self._load_model()
+        self._tensorboard_logger = TensorboardLogger(save_path, config)
 
-    def logImportantConfig(self):
+    def train(self):
         """
-        # print important configs
+        # outer loop for training
+        # control training and validation pace
+        # stop when reaching max iterations
         :return:
         """
-        logger.info(f"Learning rate: {self.config['model']['learning_rate']}")
-        logger.info(f"Lambda loss: {self.config['model']['lambda_loss']}")
-        logger.info(
-            f"Detection threshold: {self.config['model']['detection_threshold']}",
+        logger.info(f"Training iterations: {self._max_iterations}")
+
+        running_losses = []
+        # TODO: pretty tqdm logs
+        while self._iteration < self._max_iterations:
+            try:
+                logger.info(f"Epoch: {self._epoch}")
+                for sample_train in tqdm(self.train_loader):
+                    loss = self.process_sample(sample_train, self._iteration, "train")
+                    running_losses.append(loss)
+
+                    if self._iteration % self.config["save_interval"] == 0:
+                        logger.info(f"Current iteration: {self._iteration}")
+                        self.save()
+
+                    if (
+                        self._eval
+                        and self._iteration % self.config["validation_interval"] == 1
+                    ):
+                        logger.info("Validating...")
+                        for i, sample_val in enumerate(
+                            itertools.islice(
+                                self.val_loader, self.config.get("validation_size")
+                            )
+                        ):
+                            self.process_sample(sample_val, self._iteration + i, "val")
+
+                    if self._iteration > self._max_iterations:
+                        logger.info("End training: {self.n_iter}")
+                        break
+
+                    self._iteration += 1
+                self._epoch += 1
+
+            except KeyboardInterrupt:
+                logger.info("KeyboardInterrupt, saving model...")
+                self.save()
+        self._tensorboard_logger.close()
+
+    def save(self):
+        """
+        # save checkpoint for resuming training
+        :return:
+        """
+        filename = (
+            f"{self.config['model']['name']}_{self._iteration}_checkpoint.pth.tar"
         )
-        logger.info(f"Batch size: {self.config['model']['batch_size']}")
-        logger.info(f"Descriptor: {self.desc_loss_type}")
-        for item in list(self.desc_params):
-            logger.info(f"{item} : {self.desc_params[item]}")
-
-    def _load(self):
-        """
-        load model from name and params
-        init or load optimizer
-        :return:
-        """
-        logger.info(f"Model: {self.config['model']['name']}")
-        if self.config["pretrained"] is not None:
-            checkpoint = torch.load(self.config["pretrained"])
-            self.net = ModelsFactory.create(
-                model_name=self.config["model"]["name"],
-                state=checkpoint["model_state_dict"],
-                **self.config["model"]["params"],
-            ).to(self.device)
-
-            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-            self.epoch = checkpoint.get("epoch", 0)
-            self.n_iter = checkpoint.get("n_iter", 0)
-            self.loss = checkpoint.get("loss", 0)
-
-        else:
-            logger.info("Training model from scratch")
-            self.net = ModelsFactory.create(
-                model_name=self.config["model"]["name"],
-                **self.config["model"]["params"],
-            ).to(self.device)
-
-            self.optimizer = optim.Adam(
-                self.net.parameters(),
-                lr=self.config["model"]["learning_rate"],
-                betas=(0.9, 0.999),
-            )
-
-        logger.info(f"Using {torch.cuda.device_count()} GPUs")
-        self.net = nn.DataParallel(self.net)
-
-    @property
-    def writer(self):
-        """
-        # writer for tensorboard
-        :return:
-        """
-        return self._writer
-
-    @writer.setter
-    def writer(self, writer):
-        self._writer = writer
+        torch.save(
+            {
+                "epoch": self._epoch,
+                "n_iter": self._iteration,
+                "model_state_dict": self.net.module.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "loss": self.loss,
+            },
+            os.path.join(self.checkpoints_path, filename),
+        )
+        logger.info(f"Saved checkpoint to {filename}")
 
     @property
     def train_loader(self):
-        """
-        loader for dataset, set from outside
-        :return:
-        """
         return self._train_loader
 
     @train_loader.setter
@@ -213,55 +190,66 @@ class Trainer:
         self._eval = True
         self._val_loader = loader
 
-    def train(self):
+    def _log_important_config(self):
+        logger.info(f"Learning rate: {self.config['model']['learning_rate']}")
+        logger.info(f"Lambda loss: {self.config['model']['lambda_loss']}")
+        logger.info(
+            f"Detection threshold: {self.config['model']['detection_threshold']}",
+        )
+        logger.info(f"Batch size: {self.config['model']['batch_size']}")
+        logger.info(f"Descriptor: {self.desc_loss_type}")
+        for item in list(self.desc_params):
+            logger.info(f"{item} : {self.desc_params[item]}")
+
+    def _load_model(self):
         """
-        # outer loop for training
-        # control training and validation pace
-        # stop when reaching max iterations
+        Load model from name and params, and initialize or load optimizer.
         :return:
         """
-        logger.info(f"Iteration: {self.n_iter}")
-        logger.info(f"Number of iterations: {self.max_iter}")
+        logger.info(f"Model: {self.config['model']['name']}")
 
-        running_losses = []
-        # TODO: pretty tqdm logs
-        while self.n_iter < self.max_iter:
-            try:
-                logger.info(f"Epoch: {self._epoch}")
-                for i, sample_train in tqdm(enumerate(self.train_loader)):
-                    loss_out = self.train_val_sample(sample_train, self.n_iter, True)
-                    running_losses.append(loss_out)
+        model_params = self.config["model"]["params"]
+        model_name = self.config["model"]["name"]
 
-                    if self.n_iter % self.config["save_interval"] == 0:
-                        logger.info(f"Current iteration: {self.n_iter}")
-                        self._save()
+        if self.config["pretrained"] is not None:
+            checkpoint = torch.load(self.config["pretrained"])
+            state_dict = checkpoint["model_state_dict"]
+            self.epoch = checkpoint.get("epoch", 0)
+            self._iteration = checkpoint.get("n_iter", 0)
+            self.loss = checkpoint.get("loss", 0)
+            optimizer_state_dict = checkpoint["optimizer_state_dict"]
+        else:
+            logger.info("Training model from scratch")
+            state_dict = None
+            optimizer_state_dict = None
 
-                    if (
-                        self._eval
-                        and self.n_iter % self.config["validation_interval"] == 1
-                    ):
-                        logger.info("Validating...")
-                        for j, sample_val in enumerate(
-                            itertools.islice(
-                                self.val_loader, self.config.get("validation_size")
-                            )
-                        ):
-                            self.train_val_sample(sample_val, self.n_iter + j, False)
+        self.net = ModelsFactory.create(
+            model_name=model_name, state=state_dict, **model_params
+        ).to(self.device)
+        self._init_optimizer(optimizer_state_dict)
 
-                    if self.n_iter > self.max_iter:
-                        logger.info("End training: {self.n_iter}")
-                        break
+        # Multi-GPU support
+        logger.info(f"Using {torch.cuda.device_count()} GPUs")
+        self.net = nn.DataParallel(self.net)
 
-                    self.n_iter += 1
-                self._epoch += 1
+    def _init_optimizer(self, optimizer_state_dict=None):
+        """
+        Initialize or load the optimizer.
+        """
+        if optimizer_state_dict:
+            self.optimizer.load_state_dict(optimizer_state_dict)
+        else:
+            self.optimizer = optim.Adam(
+                self.net.parameters(),
+                lr=self.config["model"]["learning_rate"],
+                betas=(0.9, 0.999),
+            )
 
-            except KeyboardInterrupt:
-                logger.info("KeyboardInterrupt, saving model...")
-                self._save()
-            finally:
-                self.writer.close()
+    def process_sample(self, sample, iteration: int, task="val"):
+        raise NotImplementedError("This method should be implemented in child classes")
 
-    def getLabels(self, labels_2D, cell_size, device):
+    @staticmethod
+    def get_labels(labels_2D, cell_size, device):
         """
         # transform 2D labels to 3D shape for training
         :param labels_2D:
@@ -275,7 +263,8 @@ class Trainer:
         labels3D_in_loss = labels3D_flattened
         return labels3D_in_loss
 
-    def getMasks(self, mask_2D, cell_size, device="cpu"):
+    @staticmethod
+    def get_masks(mask_2D, cell_size, device="cpu"):
         """
         # 2D mask is constructed into 3D (Hc, Wc) space for training
         :param mask_2D:
@@ -292,7 +281,8 @@ class Trainer:
         mask_3D_flattened = torch.prod(mask_3D, 1)
         return mask_3D_flattened
 
-    def get_loss(self, semi, labels3D_in_loss, mask_3D_flattened, device="cpu"):
+    @staticmethod
+    def get_loss(semi, labels3D_in_loss, mask_3D_flattened, device="cpu"):
         """
         ## deprecated: loss function
         :param semi:
@@ -302,527 +292,10 @@ class Trainer:
         :return:
         """
         loss_func = nn.CrossEntropyLoss(reduce=False).to(device)
-        # if self.config['data']['gaussian_label']['enable']:
-        #     loss = loss_func_BCE(nn.functional.softmax(semi, dim=1), labels3D_in_loss)
-        #     loss = (loss.sum(dim=1) * mask_3D_flattened).sum()
-        # else:
         loss = loss_func(semi, labels3D_in_loss)
         loss = (loss * mask_3D_flattened).sum()
         loss = loss / (mask_3D_flattened.sum() + 1e-10)
         return loss
-
-    def train_val_sample(self, sample, n_iter=0, train=False):
-        """
-        # deprecated: default train_val_sample
-        :param sample:
-        :param n_iter:
-        :param train:
-        :return:
-        """
-        task = "train" if train else "val"
-        tb_interval = self.config["tensorboard_interval"]
-
-        losses = {}
-        ## get the inputs
-        # logging.info('get input img and label')
-        img, labels_2D, mask_2D = (
-            sample["image"],
-            sample["labels_2D"],
-            sample["valid_mask"],
-        )
-        # img, labels = img.to(self.device), labels_2D.to(self.device)
-
-        # variables
-        batch_size, H, W = img.shape[0], img.shape[2], img.shape[3]
-        self.batch_size = batch_size
-        Hc = H // self.cell_size
-        Wc = W // self.cell_size
-
-        # warped images
-        # img_warp, labels_warp_2D, mask_warp_2D = sample['warped_img'].to(self.device), \
-        #     sample['warped_labels'].to(self.device), \
-        #     sample['warped_valid_mask'].to(self.device)
-        img_warp, labels_warp_2D, mask_warp_2D = (
-            sample["warped_img"],
-            sample["warped_labels"],
-            sample["warped_valid_mask"],
-        )
-
-        # homographies
-        # mat_H, mat_H_inv = \
-        # sample['homographies'].to(self.device), sample['inv_homographies'].to(self.device)
-        mat_H, mat_H_inv = sample["homographies"], sample["inv_homographies"]
-
-        # zero the parameter gradients
-        self.optimizer.zero_grad()
-
-        # forward + backward + optimize
-        if train:
-            logger.debug("Image: ", img.shape, ", image warped: ", img_warp.shape)
-            outs, outs_warp = (
-                self.net(img.to(self.device)),
-                self.net(img_warp.to(self.device), subpixel=self.subpixel),
-            )
-            semi, coarse_desc = outs[0], outs[1]
-            semi_warp, coarse_desc_warp = outs_warp[0], outs_warp[1]
-        else:
-            with torch.no_grad():
-                outs, outs_warp = (
-                    self.net(img.to(self.device)),
-                    self.net(img_warp.to(self.device), subpixel=self.subpixel),
-                )
-                semi, coarse_desc = outs[0], outs[1]
-                semi_warp, coarse_desc_warp = outs_warp[0], outs_warp[1]
-                pass
-
-        # detector loss
-        ## get labels, masks, loss for detection
-        labels3D_in_loss = self.getLabels(labels_2D, self.cell_size, device=self.device)
-        mask_3D_flattened = self.getMasks(mask_2D, self.cell_size, device=self.device)
-        loss_det = self.get_loss(
-            semi, labels3D_in_loss, mask_3D_flattened, device=self.device
-        )
-
-        ## warping
-        labels3D_in_loss = self.getLabels(
-            labels_warp_2D, self.cell_size, device=self.device
-        )
-        mask_3D_flattened = self.getMasks(
-            mask_warp_2D, self.cell_size, device=self.device
-        )
-        loss_det_warp = self.get_loss(
-            semi_warp, labels3D_in_loss, mask_3D_flattened, device=self.device
-        )
-
-        mask_desc = mask_3D_flattened.unsqueeze(1)
-
-        logger.debug("Mask descriptors: ", mask_desc.shape)
-        logger.debug("Mask warp 2D: ", mask_warp_2D.shape)
-
-        # descriptor loss
-
-        # if self.desc_loss_type == 'dense':
-        loss_desc, mask, positive_dist, negative_dist = self.descriptor_loss(
-            coarse_desc,
-            coarse_desc_warp,
-            mat_H,
-            mask_valid=mask_desc,
-            device=self.device,
-            **self.desc_params,
-        )
-
-        loss = (
-            loss_det + loss_det_warp + self.config["model"]["lambda_loss"] * loss_desc
-        )
-
-        if self.subpixel:
-            # coarse to dense descriptor
-            # work on warped level
-            # dense_desc = interpolate_to_dense(coarse_desc_warp, cell_size=self.cell_size) # tensor [batch, 256, H, W]
-            dense_map = flattenDetection(semi_warp)  # tensor [batch, 1, H, W]
-            # concat image and dense_desc
-            concat_features = torch.cat(
-                (img_warp.to(self.device), dense_map), dim=1
-            )  # tensor [batch, n, H, W]
-            # prediction
-            # pred_heatmap = self.subpixNet(concat_features.to(self.device)) # tensor [batch, 1, H, W]
-            pred_heatmap = outs_warp[2]  # tensor [batch, 1, H, W]
-            logger.debug("Pred_heatmap: ", pred_heatmap.shape)
-            # add histogram here
-            # tensor [batch, channels, H, W]
-            # loss
-            labels_warped_res = sample["warped_res"]
-            # writer.add_histogram(task + '-' + 'warped_res',
-            #     labels_warped_res[0,...].clone().cpu().data.numpy().transpose(0,1).transpose(1,2).view(-1, 2),
-            #     n_iter)
-
-            # from utils.losses import subpixel_loss
-            subpix_loss = self.subpixel_loss_func(
-                labels_warp_2D.to(self.device),
-                labels_warped_res.to(self.device),
-                pred_heatmap.to(self.device),
-                patch_size=11,
-            )
-            logger.debug("Subpix_loss: ", subpix_loss)
-            # loss += subpix_loss
-            # loss = subpix_loss
-
-            # extract the patches from labels
-            label_idx = labels_2D[...].nonzero()
-            from src.ultrapoint.utils.losses import extract_patches
-
-            patch_size = 32
-            patches = extract_patches(
-                label_idx.to(self.device),
-                img_warp.to(self.device),
-                patch_size=patch_size,
-            )  # tensor [N, patch_size, patch_size]
-            # patches = extract_patches(label_idx.to(device), labels_2D.to(device), patch_size=15) # tensor [N, patch_size, patch_size]
-            logger.info("Patches: ", patches.shape)
-
-            def label_to_points(labels_res, points):
-                labels_res = labels_res.transpose(1, 2).transpose(2, 3).unsqueeze(1)
-                points_res = labels_res[
-                    points[:, 0], points[:, 1], points[:, 2], points[:, 3], :
-                ]  # tensor [N, 2]
-                return points_res
-
-            points_res = label_to_points(labels_warped_res, label_idx)
-
-            num_patches_max = 500
-            # feed into the network
-            pred_res = self.net(
-                patches[:num_patches_max, ...].to(self.device)
-            )  # tensor [1, N, 2]
-
-            # loss function
-            def get_loss(points_res, pred_res):
-                loss = points_res - pred_res
-                loss = torch.norm(loss, p=2, dim=-1).mean()
-                return loss
-
-            loss = get_loss(points_res[:num_patches_max, ...].to(self.device), pred_res)
-
-            losses.update({"subpix_loss": subpix_loss})
-
-        self.loss = loss
-
-        losses.update(
-            {
-                "loss": loss,
-                "loss_det": loss_det,
-                "loss_det_warp": loss_det_warp,
-                "positive_dist": positive_dist,
-                "negative_dist": negative_dist,
-            }
-        )
-        logger.debug("Losses: ", losses)
-
-        if train:
-            loss.backward()
-            self.optimizer.step()
-
-        if n_iter % tb_interval == 0 or task == "val":
-            logger.info(
-                "current iteration: %d, tensorboard_interval: %d", n_iter, tb_interval
-            )
-            self.addImg2tensorboard(
-                img,
-                labels_2D,
-                semi,
-                img_warp,
-                labels_warp_2D,
-                mask_warp_2D,
-                semi_warp,
-                mask_3D_flattened=mask_3D_flattened,
-                task=task,
-            )
-
-            if self.subpixel:
-                logger.debug("Only update subpixel_loss")
-                self.add_single_image_to_tb(
-                    task, pred_heatmap, n_iter, name="subpixel_heatmap"
-                )
-
-            self.printLosses(losses, task)
-
-            # if n_iter % tb_interval == 0 or task == 'val':
-            logger.debug("Add non max supression")
-            self.add2tensorboard_nms(
-                img, labels_2D, semi, task=task, batch_size=batch_size
-            )
-
-        return loss.item()
-
-    def _save(self):
-        """
-        # save checkpoint for resuming training
-        :return:
-        """
-        filename = f"{self.config['model']['name']}_{self.n_iter}_checkpoint.pth.tar"
-        torch.save(
-            {
-                "epoch": self._epoch,
-                "n_iter": self.n_iter,
-                "model_state_dict": self.net.module.state_dict(),
-                "optimizer_state_dict": self.optimizer.state_dict(),
-                "loss": self.loss,
-            },
-            os.path.join(self.checkpoints_path, filename),
-        )
-        logger.info(f"Saved checkpoint to {filename}")
-
-    def add_single_image_to_tb(self, task, img_tensor, n_iter, name="img"):
-        """
-        # add image to tensorboard for visualization
-        :param task:
-        :param img_tensor:
-        :param n_iter:
-        :param name:
-        :return:
-        """
-        if img_tensor.dim() == 4:
-            for i in range(min(img_tensor.shape[0], 5)):
-                self.writer.add_image(
-                    task + "-" + name + "/%d" % i, img_tensor[i, :, :, :], n_iter
-                )
-        else:
-            self.writer.add_image(task + "-" + name, img_tensor[:, :, :], n_iter)
-
-    # tensorboard
-    def addImg2tensorboard(
-        self,
-        img,
-        labels_2D,
-        semi,
-        img_warp=None,
-        labels_warp_2D=None,
-        mask_warp_2D=None,
-        semi_warp=None,
-        mask_3D_flattened=None,
-        task="training",
-    ):
-        """
-        # deprecated: add images to tensorboard
-        :param img:
-        :param labels_2D:
-        :param semi:
-        :param img_warp:
-        :param labels_warp_2D:
-        :param mask_warp_2D:
-        :param semi_warp:
-        :param mask_3D_flattened:
-        :param task:
-        :return:
-        """
-        logger.info("Adding images to tensorboard")
-
-        n_iter = self.n_iter
-        semi_flat = flattenDetection(semi[0, :, :, :])
-        semi_warp_flat = flattenDetection(semi_warp[0, :, :, :])
-
-        thd = self.config["model"]["detection_threshold"]
-        semi_thd = thd_img(semi_flat, thd=thd)
-        semi_warp_thd = thd_img(semi_warp_flat, thd=thd)
-
-        result_overlap = img_overlap(
-            to_numpy(labels_2D[0, :, :, :]),
-            to_numpy(semi_thd),
-            to_numpy(img[0, :, :, :]),
-        )
-
-        self.writer.add_image(
-            task + "-detector_output_thd_overlay", result_overlap, n_iter
-        )
-        saveImg(
-            result_overlap.transpose([1, 2, 0])[..., [2, 1, 0]] * 255, "test_0.png"
-        )  # rgb to bgr * 255
-
-        result_overlap = img_overlap(
-            to_numpy(labels_warp_2D[0, :, :, :]),
-            to_numpy(semi_warp_thd),
-            to_numpy(img_warp[0, :, :, :]),
-        )
-        self.writer.add_image(
-            task + "-warp_detector_output_thd_overlay", result_overlap, n_iter
-        )
-        saveImg(
-            result_overlap.transpose([1, 2, 0])[..., [2, 1, 0]] * 255, "test_1.png"
-        )  # rgb to bgr * 255
-
-        mask_overlap = img_overlap(
-            to_numpy(1 - mask_warp_2D[0, :, :, :]) / 2,
-            np.zeros_like(to_numpy(img_warp[0, :, :, :])),
-            to_numpy(img_warp[0, :, :, :]),
-        )
-
-        # writer.add_image(task + '_mask_valid_first_layer', mask_warp[0, :, :, :], n_iter)
-        # writer.add_image(task + '_mask_valid_last_layer', mask_warp[-1, :, :, :], n_iter)
-        for i in range(self.batch_size):
-            if i < 5:
-                self.writer.add_image(
-                    task + "-mask_warp_origin", mask_warp_2D[i, :, :, :], n_iter
-                )
-                self.writer.add_image(
-                    task + "-mask_warp_3D_flattened", mask_3D_flattened[i, :, :], n_iter
-                )
-        # self.writer.add_image(task + '-mask_warp_origin-1', mask_warp_2D[1, :, :, :], n_iter)
-        # self.writer.add_image(task + '-mask_warp_3D_flattened-1', mask_3D_flattened[1, :, :], n_iter)
-        self.writer.add_image(task + "-mask_warp_overlay", mask_overlap, n_iter)
-
-    def tb_scalar_dict(self, losses, task="training"):
-        """
-        # add scalar dictionary to tensorboard
-        :param losses:
-        :param task:
-        :return:
-        """
-        for element in list(losses):
-            self.writer.add_scalar(task + "-" + element, losses[element], self.n_iter)
-            # print (task, '-', element, ": ", losses[element].item())
-
-    def tb_images_dict(self, task, tb_imgs, max_img=5):
-        """
-        # add image dictionary to tensorboard
-        :param task:
-            str (train, val)
-        :param tb_imgs:
-        :param max_img:
-            int - number of images
-        :return:
-        """
-        for element in list(tb_imgs):
-            for idx in range(tb_imgs[element].shape[0]):
-                if idx >= max_img:
-                    break
-                # print(f"element: {element}")
-                self.writer.add_image(
-                    task + "-" + element + "/%d" % idx,
-                    tb_imgs[element][idx, ...],
-                    self.n_iter,
-                )
-
-    def tb_hist_dict(self, task, tb_dict):
-        for element in list(tb_dict):
-            self.writer.add_histogram(
-                task + "-" + element, tb_dict[element], self.n_iter
-            )
-        pass
-
-    def printLosses(self, losses, task="training"):
-        """
-        # print loss for tracking training
-        :param losses:
-        :param task:
-        :return:
-        """
-        for element in list(losses):
-            logger.info(f"{task} - {element}: {losses[element].item()}")
-
-    def add2tensorboard_nms(self, img, labels_2D, semi, task="training", batch_size=1):
-        """
-        # deprecated:
-        :param img:
-        :param labels_2D:
-        :param semi:
-        :param task:
-        :param batch_size:
-        :return:
-        """
-        from src.ultrapoint.utils.utils import getPtsFromHeatmap
-        from src.ultrapoint.utils.utils import box_nms
-
-        boxNms = False
-        n_iter = self.n_iter
-
-        nms_dist = self.config["model"]["nms"]
-        conf_thresh = self.config["model"]["detection_threshold"]
-        # print("nms_dist: ", nms_dist)
-        precision_recall_list = []
-        precision_recall_boxnms_list = []
-        for idx in range(batch_size):
-            semi_flat_tensor = flattenDetection(semi[idx, :, :, :]).detach()
-            semi_flat = to_numpy(semi_flat_tensor)
-            semi_thd = np.squeeze(semi_flat, 0)
-            pts_nms = getPtsFromHeatmap(semi_thd, conf_thresh, nms_dist)
-            semi_thd_nms_sample = np.zeros_like(semi_thd)
-            semi_thd_nms_sample[
-                pts_nms[1, :].astype(np.int), pts_nms[0, :].astype(np.int)
-            ] = 1
-
-            label_sample = torch.squeeze(labels_2D[idx, :, :, :])
-            # pts_nms = getPtsFromHeatmap(label_sample.numpy(), conf_thresh, nms_dist)
-            # label_sample_rms_sample = np.zeros_like(label_sample.numpy())
-            # label_sample_rms_sample[pts_nms[1, :].astype(np.int), pts_nms[0, :].astype(np.int)] = 1
-            label_sample_nms_sample = label_sample
-
-            if idx < 5:
-                result_overlap = img_overlap(
-                    np.expand_dims(label_sample_nms_sample, 0),
-                    np.expand_dims(semi_thd_nms_sample, 0),
-                    to_numpy(img[idx, :, :, :]),
-                )
-                self.writer.add_image(
-                    task + "-detector_output_thd_overlay-NMS" + "/%d" % idx,
-                    result_overlap,
-                    n_iter,
-                )
-            assert semi_thd_nms_sample.shape == label_sample_nms_sample.size()
-            precision_recall = precisionRecall_torch(
-                torch.from_numpy(semi_thd_nms_sample), label_sample_nms_sample
-            )
-            precision_recall_list.append(precision_recall)
-
-            if boxNms:
-                semi_flat_tensor_nms = box_nms(
-                    semi_flat_tensor.squeeze(), nms_dist, min_prob=conf_thresh
-                ).cpu()
-                semi_flat_tensor_nms = (semi_flat_tensor_nms >= conf_thresh).float()
-
-                if idx < 5:
-                    result_overlap = img_overlap(
-                        np.expand_dims(label_sample_nms_sample, 0),
-                        semi_flat_tensor_nms.numpy()[np.newaxis, :, :],
-                        to_numpy(img[idx, :, :, :]),
-                    )
-                    self.writer.add_image(
-                        task + "-detector_output_thd_overlay-boxNMS" + "/%d" % idx,
-                        result_overlap,
-                        n_iter,
-                    )
-                precision_recall_boxnms = precisionRecall_torch(
-                    semi_flat_tensor_nms, label_sample_nms_sample
-                )
-                precision_recall_boxnms_list.append(precision_recall_boxnms)
-
-        precision = np.mean(
-            [
-                precision_recall["precision"]
-                for precision_recall in precision_recall_list
-            ]
-        )
-        recall = np.mean(
-            [precision_recall["recall"] for precision_recall in precision_recall_list]
-        )
-        self.writer.add_scalar(task + "-precision_nms", precision, n_iter)
-        self.writer.add_scalar(task + "-recall_nms", recall, n_iter)
-        logger.info(
-            "-- [%s-%d-fast NMS] Precision: %.4f, Recall: %.4f"
-            % (task, n_iter, precision, recall)
-        )
-        if boxNms:
-            precision = np.mean(
-                [
-                    precision_recall["precision"]
-                    for precision_recall in precision_recall_boxnms_list
-                ]
-            )
-            recall = np.mean(
-                [
-                    precision_recall["recall"]
-                    for precision_recall in precision_recall_boxnms_list
-                ]
-            )
-            self.writer.add_scalar(task + "-precision_boxnms", precision, n_iter)
-            self.writer.add_scalar(task + "-recall_boxnms", recall, n_iter)
-            logger.info(
-                "-- [%s-%d-boxNMS] Precision: %.4f, Recall: %.4f"
-                % (task, n_iter, precision, recall)
-            )
-
-    @staticmethod
-    def input_to_imgDict(sample, tb_images_dict):
-        # for e in list(sample):
-        #     print("sample[e]", sample[e].shape)
-        #     if (sample[e]).dim() == 4:
-        #         tb_images_dict[e] = sample[e]
-        for e in list(sample):
-            element = sample[e]
-            if type(element) is torch.Tensor:
-                if element.dim() == 4:
-                    tb_images_dict[e] = element
-                # print("shape of ", i, " ", element.shape)
-        return tb_images_dict
 
     @staticmethod
     def interpolate_to_dense(coarse_desc, cell_size=8):

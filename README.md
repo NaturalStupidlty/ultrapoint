@@ -26,25 +26,16 @@ You don't need to download synthetic data. You will generate it when first runni
 ### 2) Generating pseudo labels
 This is the step of homography adaptation for joint training.
 
-#### COCO
+#### SSIR
 ```
-python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicpoint_coco_export.yaml
-```
-#### KITTI
-```
-python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicpoint_kitti_export.yaml
+python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicpoint_ssir_export.yaml
 ```
 
 ### 3) Training SuperPoint
-You need pseudo ground truth labels from step 2).
 
-#### COCO
+#### SSIR
 ```
-python train.py ../assets/configs/train/superpoint_coco_heatmap.yaml superpoint_coco
-```
-#### KITTI
-```
-python train.py ../assets/configs/train/superpoint_kitti_heatmap.yaml superpoint_kitti
+python train.py ../assets/configs/train/superpoint_ssir_heatmap.yaml superpoint_ssir
 ```
 
 ### 4) Export/ Evaluate the metrics on HPatches
