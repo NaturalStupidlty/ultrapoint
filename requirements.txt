@@ -13,8 +13,8 @@ protobuf==4.25
 crc32c
 tqdm
 pyyaml
+albumentations
 imageio
-imgaug
 jupyter
 scikit-learn
 torchgeometry

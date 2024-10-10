@@ -9,12 +9,12 @@ from ultrapoint.datasets.image_loader import ImageLoader
 from ultrapoint.utils.homographies import sample_homography
 from ultrapoint.utils.image_helpers import read_image
 from ultrapoint.utils.utils import compute_valid_mask
-from ultrapoint.utils.photometric import imgPhotometric
 from ultrapoint.utils.utils import (
     inv_warp_image,
     inv_warp_image_batch,
 )
 from ultrapoint.datasets.data_tools import warpLabels
+from ultrapoint.datasets.augmentations import ImageAugmentation
 
 
 class ImagesDataset(Dataset):
@@ -40,6 +40,8 @@ class ImagesDataset(Dataset):
 
         self._cell_size = 8
         self._resize = config.get("preprocessing", {}).get("resize", None)
+
+        self._augmentation = ImageAugmentation(**self._config["augmentation"])
 
     def __len__(self):
         return len(self._samples)
@@ -69,11 +71,8 @@ class ImagesDataset(Dataset):
         if (self._enable_photo_train is True and self._mode == "train") or (
             self._enable_photo_val and self._mode == "val"
         ):
-            img_aug = imgPhotometric(
-                img_o, self._config["augmentation"]
-            )  # numpy array (H, W, 1)
+            img_aug = self._augmentation(img_aug)
 
-        # img_aug = _preprocess(img_aug[:,:,numpy.newaxis])
         img_aug = torch.tensor(img_aug, dtype=torch.float32).view(-1, H, W)
 
         valid_mask = compute_valid_mask(
@@ -215,9 +214,7 @@ class ImagesDataset(Dataset):
                 if (self._enable_photo_train is True and self._mode == "train") or (
                     self._enable_photo_val and self._mode == "val"
                 ):
-                    warped_img = imgPhotometric(
-                        warped_img.numpy().squeeze(), self._config["augmentation"]
-                    )  # numpy array (H, W, 1)
+                    warped_img = self._augmentation(warped_img.squeeze().numpy())
                     warped_img = torch.tensor(warped_img, dtype=torch.float32)
 
                 warped_img = warped_img.view(-1, H, W)

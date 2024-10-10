@@ -1,7 +1,6 @@
 import cv2
 import shutil
 import tarfile
-import multiprocessing
 import torch.utils.data as data
 import torch
 import numpy as np
@@ -16,10 +15,10 @@ from src.ultrapoint.datasets import synthetic_dataset
 from src.ultrapoint.utils.homographies import (
     sample_homography as sample_homography,
 )
-from src.ultrapoint.utils.photometric import imgPhotometric
-from src.ultrapoint.utils.utils import compute_valid_mask
-from src.ultrapoint.utils.utils import inv_warp_image, warp_points
-from src.ultrapoint.utils.utils import filter_points
+from ultrapoint.utils.utils import compute_valid_mask
+from ultrapoint.utils.utils import inv_warp_image, warp_points
+from ultrapoint.utils.utils import filter_points
+from ultrapoint.datasets.augmentations import ImageAugmentation
 
 
 def load_as_float(path):
@@ -58,6 +57,8 @@ class SyntheticDatasetGaussian(data.Dataset):
         self._config["augmentation"]["photometric"]["enable"] = config["augmentation"][
             "photometric"
         ][f"enable_{mode}"]
+
+        self._augmentation = ImageAugmentation(**self._config["augmentation"])
 
         # Parse drawing primitives
         primitives = self.setup_primitives(config["primitives"])
@@ -195,15 +196,8 @@ class SyntheticDatasetGaussian(data.Dataset):
             warped_img = warped_img.squeeze().numpy()
             warped_img = warped_img[:, :, np.newaxis]
 
-            # labels = torch.from_numpy(labels)
-            # warped_labels = self.inv_warp_image(labels.squeeze(), inv_homography, mode='nearest').unsqueeze(0)
             warped_pnts = warp_points(pnts, homography_scaling(homography, H, W))
             warped_pnts = filter_points(warped_pnts, torch.tensor([W, H]))
-            # pnts = warped_pnts[:, [1, 0]]
-            # pnts_for_gaussian = warped_pnts
-            # warped_labels = torch.zeros(H, W)
-            # warped_labels[warped_pnts[:, 1], warped_pnts[:, 0]] = 1
-            # warped_labels = warped_labels.view(-1, H, W)
 
             if self._transforms is not None:
                 warped_img = self._transforms(warped_img)
@@ -251,11 +245,9 @@ class SyntheticDatasetGaussian(data.Dataset):
             if (self.enable_photo_train == True and self.action == "train") or (
                 self.enable_photo_val and self.action == "val"
             ):
-                warped_img = imgPhotometric(
-                    warped_img.numpy().squeeze(), self._config["augmentation"]
-                )  # numpy array (H, W, 1)
+                warped_img = self._augmentation(warped_img.squeeze().numpy())
                 warped_img = torch.tensor(warped_img, dtype=torch.float32)
-                pass
+
             warped_img = warped_img.view(-1, H, W)
 
             # warped_labels = warpLabels(pnts, H, W, homography)

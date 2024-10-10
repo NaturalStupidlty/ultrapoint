@@ -11,32 +11,60 @@ data:
         photometric:
             enable_train: true
             enable_val: true
-            params:
-                additive_gaussian_noise:
-                    stddev_range:
-                    - 0
-                    - 10
-                additive_shade:
-                    kernel_size_range:
-                    - 100
-                    - 150
-                    transparency_range:
-                    - -0.5
-                    - 0.5
-                additive_speckle_noise:
-                    prob_range:
-                    - 0
-                    - 0.0035
-                motion_blur: {max_kernel_size: 3}
-                gaussian_blur: {sigma: 0.2}
-                random_brightness:
-                    max_abs_change: 50
-                random_contrast:
-                    strength_range:
-                    - 0.5
-                    - 1.5
-            primitives: []
             random_order: true
+            augmentations:
+                - CoarseDropout:
+                    max_holes: 75
+                    max_height: 1
+                    max_width: 1
+                    fill_value: 0
+                    p: 0.5
+                - CoarseDropout:
+                    max_holes: 10
+                    max_height: 2
+                    max_width: 2
+                    fill_value: 0
+                    p: 0.5
+                - CoarseDropout:
+                    max_holes: 75
+                    max_height: 1
+                    max_width: 1
+                    fill_value: 255
+                    p: 0.5
+                - CoarseDropout:
+                    max_holes: 10
+                    max_height: 2
+                    max_width: 2
+                    fill_value: 255
+                    p: 0.5
+                - ISONoise:
+                    color_shift:
+                      - 0.01
+                      - 0.05
+                    intensity:
+                      - 0.1
+                      - 0.5
+                    p: 1.0
+                - GaussNoise:
+                    var_limit:
+                      - 0.0
+                      - 0.1
+                    p: 1.0
+                - GaussianBlur:
+                    blur_limit:
+                      - 1
+                      - 3
+                    p: 1.0
+                - MotionBlur:
+                    blur_limit:
+                      - 3
+                      - 5
+                    p: 0.75
+                - RandomBrightnessContrast:
+                    brightness_limit: 0.2
+                    contrast_limit: 0.2
+                    p: 1.0
+
     cache_in_memory: false
     dataset: ImagesDataset
     homography_adaptation:
