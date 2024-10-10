@@ -5,9 +5,9 @@ from numpy.random import randint
 from imgaug import augmenters
 
 
-class ImgAugTransform:
+class ImageAugmentation:
     def __init__(self, **config):
-        self.aug = augmenters.Sequential(
+        self.augmentations = augmenters.Sequential(
             [
                 augmenters.Sometimes(0.25, augmenters.GaussianBlur(sigma=(0, 3.0))),
                 augmenters.Sometimes(
@@ -49,21 +49,18 @@ class ImgAugTransform:
                 aug_all.append(aug)
             if params.get("motion_blur", False):
                 change = params["motion_blur"]["max_kernel_size"]
-                if change > 3:
-                    change = randint(3, change)
-                elif change == 3:
-                    aug = augmenters.Sometimes(0.5, augmenters.MotionBlur(change))
-                    aug_all.append(aug)
-
-            if params.get("GaussianBlur", False):
-                change = params["GaussianBlur"]["sigma"]
+                change = randint(3, change) if change > 3 else change
+                aug = augmenters.Sometimes(0.5, augmenters.MotionBlur(change))
+                aug_all.append(aug)
+            if params.get("gaussian_blur", False):
+                change = params["gaussian_blur"]["sigma"]
                 aug = augmenters.GaussianBlur(sigma=change)
                 aug_all.append(aug)
 
-            self.aug = augmenters.Sequential(aug_all)
+            self.augmentations = augmenters.Sequential(aug_all)
 
         else:
-            self.aug = augmenters.Sequential(
+            self.augmentations = augmenters.Sequential(
                 [
                     augmenters.Noop(),
                 ]
@@ -72,7 +69,7 @@ class ImgAugTransform:
     def __call__(self, img):
         img = np.array(img)
         img = (img * 255).astype(np.uint8)
-        img = self.aug.augment_image(img)
+        img = self.augmentations.augment_image(img)
         img = img.astype(np.float32) / 255
         return img
 
@@ -125,7 +122,7 @@ def imgPhotometric(img, augmentations_config: dict):
         numpy (H, W)
     :return:
     """
-    augmentation = ImgAugTransform(**augmentations_config)
+    augmentation = ImageAugmentation(**augmentations_config)
     img = img[:, :, np.newaxis]
     img = augmentation(img)
     cusAug = customizedTransform()

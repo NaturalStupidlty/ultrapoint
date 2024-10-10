@@ -1,10 +1,3 @@
-"""
-Adapted from https://github.com/rpautrat/SuperPoint/blob/master/superpoint/datasets/synthetic_dataset.py
-
-Author: You-Yi Jau, Rui Zhu
-Date: 2019/12/12
-"""
-
 import cv2
 import shutil
 import tarfile
@@ -23,12 +16,10 @@ from src.ultrapoint.datasets import synthetic_dataset
 from src.ultrapoint.utils.homographies import (
     sample_homography as sample_homography,
 )
-from src.ultrapoint.utils.photometric import (
-    ImgAugTransform,
-    customizedTransform,
-)
+from src.ultrapoint.utils.photometric import imgPhotometric
 from src.ultrapoint.utils.utils import compute_valid_mask
 from src.ultrapoint.utils.utils import inv_warp_image, warp_points
+from src.ultrapoint.utils.utils import filter_points
 
 
 def load_as_float(path):
@@ -54,9 +45,9 @@ class SyntheticDatasetGaussian(data.Dataset):
         transforms=None,
         **config,
     ):
-        self.config = config
+        self._config = config
         self._data_path = config.get("path", "/tmp")
-        self.transform = transforms
+        self._transforms = transforms
 
         self.enable_photo_train = config["augmentation"]["photometric"]["enable_train"]
         self.enable_homo_train = config["augmentation"]["homographic"]["enable_train"]
@@ -64,11 +55,9 @@ class SyntheticDatasetGaussian(data.Dataset):
         self.enable_photo_val = config["augmentation"]["photometric"]["enable_val"]
 
         self.action = "training" if mode == "train" else "validation"
-        self.config["augmentation"]["photometric"]["enable"] = config["augmentation"][
+        self._config["augmentation"]["photometric"]["enable"] = config["augmentation"][
             "photometric"
         ][f"enable_{mode}"]
-        self.gaussian_label = config["gaussian_label"]["enable"]
-        self.pool = multiprocessing.Pool(6)
 
         # Parse drawing primitives
         primitives = self.setup_primitives(config["primitives"])
@@ -121,20 +110,6 @@ class SyntheticDatasetGaussian(data.Dataset):
             image: tensor(1, H, W)
         """
 
-        def imgPhotometric(img):
-            """
-
-            :param img:
-                numpy (H, W)
-            :return:
-            """
-            augmentation = ImgAugTransform(**self.config["augmentation"])
-            img = img[:, :, np.newaxis]
-            img = augmentation(img)
-            cusAug = customizedTransform()
-            img = cusAug(img, **self.config["augmentation"])
-            return img
-
         def get_labels(pnts, H, W):
             labels = torch.zeros(H, W)
             # print('--2', pnts, pnts.size())
@@ -157,10 +132,6 @@ class SyntheticDatasetGaussian(data.Dataset):
             labels_res = labels_res.transpose(1, 2).transpose(0, 1)
             return labels_res
 
-        from src.ultrapoint.datasets.data_tools import np_to_tensor
-        from src.ultrapoint.utils.utils import filter_points
-        from src.ultrapoint.utils.torch_helpers import squeeze_to_numpy
-
         sample = self.samples[index]
         img = load_as_float(sample["image"])
         H, W = img.shape[0], img.shape[1]
@@ -179,18 +150,18 @@ class SyntheticDatasetGaussian(data.Dataset):
 
         if not (
             (
-                self.config["augmentation"]["homographic"]["enable_train"]
+                self._config["augmentation"]["homographic"]["enable_train"]
                 and self.action == "training"
             )
             or (
-                self.config["augmentation"]["homographic"]["enable_val"]
+                self._config["augmentation"]["homographic"]["enable_val"]
                 and self.action == "validation"
             )
         ):
             img = img[:, :, np.newaxis]
             # labels = labels.view(-1,H,W)
-            if self.transform is not None:
-                img = self.transform(img)
+            if self._transforms is not None:
+                img = self._transforms(img)
             sample["image"] = img
             # sample = {'image': img, 'labels_2D': labels}
             valid_mask = compute_valid_mask(
@@ -210,7 +181,7 @@ class SyntheticDatasetGaussian(data.Dataset):
             homography = sample_homography(
                 np.array([2, 2]),
                 shift=-1,
-                **self.config["augmentation"]["homographic"]["params"],
+                **self._config["augmentation"]["homographic"]["params"],
             )
 
             ##### use inverse from the sample homography
@@ -234,15 +205,15 @@ class SyntheticDatasetGaussian(data.Dataset):
             # warped_labels[warped_pnts[:, 1], warped_pnts[:, 0]] = 1
             # warped_labels = warped_labels.view(-1, H, W)
 
-            if self.transform is not None:
-                warped_img = self.transform(warped_img)
+            if self._transforms is not None:
+                warped_img = self._transforms(warped_img)
             # sample = {'image': warped_img, 'labels_2D': warped_labels}
             sample["image"] = warped_img
 
             valid_mask = compute_valid_mask(
                 torch.tensor([H, W]),
                 inv_homography=inv_homography,
-                erosion_radius=self.config["augmentation"]["homographic"][
+                erosion_radius=self._config["augmentation"]["homographic"][
                     "valid_border_margin"
                 ],
             )  # can set to other value
@@ -252,26 +223,14 @@ class SyntheticDatasetGaussian(data.Dataset):
             sample.update({"labels_2D": labels_2D.unsqueeze(0)})
 
             labels_res = get_label_res(H, W, warped_pnts)
-            pnts_post = warped_pnts
-
-        if self.gaussian_label:
-            # warped_labels_gaussian = get_labels_gaussian(pnts)
-            from src.ultrapoint.datasets.data_tools import get_labels_bi
-
-            labels_2D_bi = get_labels_bi(pnts_post, H, W)
-
-            labels_gaussian = self.gaussian_blur(squeeze_to_numpy(labels_2D_bi))
-            labels_gaussian = np_to_tensor(labels_gaussian, H, W)
-            sample["labels_2D_gaussian"] = labels_gaussian
 
         sample.update({"labels_res": labels_res})
 
-        ### code for warped image
-        if self.config["warped_pair"]["enable"]:
+        if self._config["warped_pair"]["enable"]:
             from src.ultrapoint.datasets.data_tools import warpLabels
 
             homography = sample_homography(
-                np.array([2, 2]), shift=-1, **self.config["warped_pair"]["params"]
+                np.array([2, 2]), shift=-1, **self._config["warped_pair"]["params"]
             )
 
             ##### use inverse from the sample homography
@@ -293,7 +252,7 @@ class SyntheticDatasetGaussian(data.Dataset):
                 self.enable_photo_val and self.action == "val"
             ):
                 warped_img = imgPhotometric(
-                    warped_img.numpy().squeeze()
+                    warped_img.numpy().squeeze(), self._config["augmentation"]
                 )  # numpy array (H, W, 1)
                 warped_img = torch.tensor(warped_img, dtype=torch.float32)
                 pass
@@ -304,18 +263,6 @@ class SyntheticDatasetGaussian(data.Dataset):
             warped_labels = warped_set["labels"]
             warped_res = warped_set["res"]
             warped_res = warped_res.transpose(1, 2).transpose(0, 1)
-            # print("warped_res: ", warped_res.shape)
-            if self.gaussian_label:
-                # print("do gaussian labels!")
-                # warped_labels_gaussian = get_labels_gaussian(warped_set['warped_pnts'].numpy())
-                # warped_labels_bi = self.inv_warp_image(labels_2D.squeeze(), inv_homography, mode='nearest').unsqueeze(0) # bilinear, nearest
-                warped_labels_bi = warped_set["labels_bi"]
-                warped_labels_gaussian = self.gaussian_blur(
-                    squeeze_to_numpy(warped_labels_bi)
-                )
-                warped_labels_gaussian = np_to_tensor(warped_labels_gaussian, H, W)
-                sample["warped_labels_gaussian"] = warped_labels_gaussian
-                sample.update({"warped_labels_bi": warped_labels_bi})
 
             sample.update(
                 {
@@ -329,7 +276,7 @@ class SyntheticDatasetGaussian(data.Dataset):
             valid_mask = compute_valid_mask(
                 torch.tensor([H, W]),
                 inv_homography=inv_homography,
-                erosion_radius=self.config["warped_pair"]["valid_border_margin"],
+                erosion_radius=self._config["warped_pair"]["valid_border_margin"],
             )  # can set to other value
             sample.update({"warped_valid_mask": valid_mask})
             sample.update(
@@ -348,7 +295,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         synthetic_dataset.set_random_state(
             np.random.RandomState(config["generation"]["random_seed"])
         )
-        for split, size in self.config["generation"]["split_sizes"].items():
+        for split, size in self._config["generation"]["split_sizes"].items():
             im_dir, pts_dir = [Path(temp_dir, i, split) for i in ["images", "points"]]
             im_dir.mkdir(parents=True, exist_ok=True)
             pts_dir.mkdir(parents=True, exist_ok=True)
@@ -403,20 +350,3 @@ class SyntheticDatasetGaussian(data.Dataset):
             sample = {"image": img, "points": pnts}
             sequence_set.append(sample)
         self.samples = sequence_set
-
-    ## util functions
-    def gaussian_blur(self, image):
-        """
-        image: np [H, W]
-        return:
-            blurred_image: np [H, W]
-        """
-        aug_par = {"photometric": {}}
-        aug_par["photometric"]["enable"] = True
-        aug_par["photometric"]["params"] = self.config["gaussian_label"]["params"]
-        augmentation = ImgAugTransform(**aug_par)
-        # get label_2D
-        # labels = points_to_2D(pnts, H, W)
-        image = image[:, :, np.newaxis]
-        heatmaps = augmentation(image)
-        return heatmaps.squeeze()

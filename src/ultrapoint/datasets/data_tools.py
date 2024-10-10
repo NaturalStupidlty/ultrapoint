@@ -88,9 +88,3 @@ def warpLabels(pnts, H, W, homography, bilinear=False):
         {"labels": warped_labels, "res": warped_labels_res, "warped_pnts": warped_pnts}
     )
     return outs
-
-
-# from data_tools import np_to_tensor
-def np_to_tensor(img, H, W):
-    img = torch.tensor(img).type(torch.FloatTensor).view(-1, H, W)
-    return img

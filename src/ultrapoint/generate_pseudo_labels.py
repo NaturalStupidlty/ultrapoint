@@ -41,10 +41,10 @@ def homography_adaptation(config):
             'prob' (keypoints): np (N1, 3)
     """
     device = determine_device()
-    logger.info(f"Training with device: {device}")
+    logger.info(f"Using device: {device}")
 
     output_directory = os.path.join(
-        Path(config["data"]["val_images_folder"]).parent, "pseudo_labels"
+        Path(config["data"]["val_images_folder"]).parent, "inference"
     )
     os.makedirs(output_directory, exist_ok=True)
 
@@ -99,11 +99,11 @@ def homography_adaptation(config):
                 pts=points.transpose()[:top_k, :],
             )
 
-            if config["save_images"]:
-                img_pts = draw_keypoints(
-                    sample["image_2D"].numpy().squeeze() * 255, points
-                )
-                saveImg(img_pts, os.path.join(output_directory, f"{filename}.png"))
+            if not config["save_images"]:
+                continue
+
+            img_pts = draw_keypoints(sample["image_2D"].numpy().squeeze() * 255, points)
+            saveImg(img_pts, os.path.join(output_directory, f"{filename}.png"))
         except KeyboardInterrupt:
             clear_memory()
 
@@ -119,7 +119,7 @@ def homography_adaptation_pretrained(config):
             'prob' (keypoints): np (N1, 3)
     """
     device = determine_device()
-    logger.info(f"Training with device: {device}")
+    logger.info(f"Using device: {device}")
 
     output_directory = os.path.join(
         Path(config["data"]["val_images_folder"]).parent, "pseudo_labels"

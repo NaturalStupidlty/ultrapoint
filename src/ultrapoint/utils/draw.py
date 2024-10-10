@@ -1,17 +1,20 @@
 """util functions for visualization
 
 """
+
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 
 
-def plot_imgs(imgs, titles=None, cmap='brg', ylabel='', normalize=False, ax=None, dpi=100):
+def plot_imgs(
+    imgs, titles=None, cmap="brg", ylabel="", normalize=False, ax=None, dpi=100
+):
     n = len(imgs)
     if not isinstance(cmap, list):
-        cmap = [cmap]*n
+        cmap = [cmap] * n
     if ax is None:
-        fig, ax = plt.subplots(1, n, figsize=(6*n, 6), dpi=dpi)
+        fig, ax = plt.subplots(1, n, figsize=(6 * n, 6), dpi=dpi)
         if n == 1:
             ax = [ax]
     else:
@@ -21,9 +24,12 @@ def plot_imgs(imgs, titles=None, cmap='brg', ylabel='', normalize=False, ax=None
     for i in range(n):
         if imgs[i].shape[-1] == 3:
             imgs[i] = imgs[i][..., ::-1]  # BGR to RGB
-        ax[i].imshow(imgs[i], cmap=plt.get_cmap(cmap[i]),
-                     vmin=None if normalize else 0,
-                     vmax=None if normalize else 1)
+        ax[i].imshow(
+            imgs[i],
+            cmap=plt.get_cmap(cmap[i]),
+            vmin=None if normalize else 0,
+            vmax=None if normalize else 1,
+        )
         if titles:
             ax[i].set_title(titles[i])
         ax[i].get_yaxis().set_ticks([])
@@ -43,32 +49,63 @@ def img_overlap(img_r, img_g, img_gray):  # img_b repeat
     img[img < 0] = 0
     return img
 
-def draw_keypoints(img, corners, color=(0, 255, 0), radius=3, s=3):
-    '''
 
-    :param img:
-        image:
-        numpy [H, W]
-    :param corners:
-        Points
-        numpy [N, 2]
-    :param color:
-    :param radius:
-    :param s:
-    :return:
-        overlaying image
-        numpy [H, W]
-    '''
-    img = np.repeat(cv2.resize(img, None, fx=s, fy=s)[..., np.newaxis], 3, -1)
-    for c in np.stack(corners).T:
-        # cv2.circle(img, tuple(s * np.flip(c, 0)), radius, color, thickness=-1)
-        cv2.circle(img, tuple((s * c[:2]).astype(int)), radius, color, thickness=-1)
+def draw_keypoints(img, points, color=(0, 255, 0), radius=3, resize=3):
+    """
+    Draw keypoints on an image with transparency depending on the score.
+
+    :param img: Input image (grayscale or RGB) (numpy [H, W] or [H, W, 3])
+    :param points: Points with scores (numpy [N, 3] where each point is (x, y, score))
+    :param color: Color of the keypoints (default: green)
+    :param radius: Radius of the keypoints (default: 3)
+    :param resize: Resize factor for the image and points (default: 1)
+    :return: Image with keypoints drawn
+    """
+    if len(img.shape) == 2 or img.shape[2] == 1:
+        img = np.repeat(
+            cv2.resize(img, None, fx=resize, fy=resize)[..., np.newaxis], 3, -1
+        )
+    else:
+        img = cv2.resize(img, None, fx=resize, fy=resize)
+
+    if len(points) == 0:
+        return img
+
+    overlay = img.copy()
+    for x, y, score in points:
+        alpha = np.clip(score, 0, 1)  # Ensure the score is in [0, 1] range
+        point_color = (
+            int(color[0]),
+            int(color[1]),
+            int(color[2]),
+        )
+
+        # Draw the keypoint on the overlay with full opacity
+        cv2.circle(
+            overlay,
+            (int(x * resize), int(y * resize)),
+            radius,
+            point_color,
+            thickness=-1,
+        )
+
+        # Blend the overlay and the original image using alpha
+        img = cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0)
+
     return img
 
 
-def draw_matches(rgb1, rgb2, match_pairs, lw = 0.5, color='g', if_fig=True,
-                filename='matches.png', show=False):
-    '''
+def draw_matches(
+    rgb1,
+    rgb2,
+    match_pairs,
+    lw=0.5,
+    color="g",
+    if_fig=True,
+    filename="matches.png",
+    show=False,
+):
+    """
 
     :param rgb1:
         image1
@@ -80,17 +117,17 @@ def draw_matches(rgb1, rgb2, match_pairs, lw = 0.5, color='g', if_fig=True,
         numpy (keypoiny1 x, keypoint1 y, keypoint2 x, keypoint 2 y)
     :return:
         None
-    '''
+    """
     from matplotlib import pyplot as plt
 
     h1, w1 = rgb1.shape[:2]
     h2, w2 = rgb2.shape[:2]
     canvas = np.zeros((max(h1, h2), w1 + w2, 3), dtype=rgb1.dtype)
-    canvas[:h1, :w1] = rgb1[:,:,np.newaxis]
-    canvas[:h2, w1:] = rgb2[:,:,np.newaxis]
+    canvas[:h1, :w1] = rgb1[:, :, np.newaxis]
+    canvas[:h2, w1:] = rgb2[:, :, np.newaxis]
     # fig = plt.figure(frameon=False)
     if if_fig:
-        fig = plt.figure(figsize=(15,5))
+        fig = plt.figure(figsize=(15, 5))
     plt.axis("off")
     plt.imshow(canvas, zorder=1)
 
@@ -105,49 +142,61 @@ def draw_matches(rgb1, rgb2, match_pairs, lw = 0.5, color='g', if_fig=True,
     markersize = 2
 
     plt.plot(
-        xs.T, ys.T,
+        xs.T,
+        ys.T,
         alpha=alpha,
         linestyle="-",
         linewidth=lw,
         aa=False,
-        marker='o',
+        marker="o",
         markersize=markersize,
-        fillstyle='none',
+        fillstyle="none",
         color=color,
         zorder=2,
         # color=[0.0, 0.8, 0.0],
-    );
+    )
     plt.tight_layout()
     if filename is not None:
-        plt.savefig(filename, dpi=300, bbox_inches='tight')
-    print('#Matches = {}'.format(len(match_pairs)))
+        plt.savefig(filename, dpi=300, bbox_inches="tight")
+    print("#Matches = {}".format(len(match_pairs)))
     if show:
         plt.show()
 
 
 def draw_matches_cv(data):
-    keypoints1 = [cv2.KeyPoint(p[1], p[0], 1) for p in data['keypoints1']]
-    keypoints2 = [cv2.KeyPoint(p[1], p[0], 1) for p in data['keypoints2']]
-    inliers = data['inliers'].astype(bool)
-    matches = np.array(data['matches'])[inliers].tolist()
+    keypoints1 = [cv2.KeyPoint(p[1], p[0], 1) for p in data["keypoints1"]]
+    keypoints2 = [cv2.KeyPoint(p[1], p[0], 1) for p in data["keypoints2"]]
+    inliers = data["inliers"].astype(bool)
+    matches = np.array(data["matches"])[inliers].tolist()
+
     def to3dim(img):
         if img.ndim == 2:
             img = img[:, :, np.newaxis]
         return img
-    img1 = to3dim(data['image1'])
-    img2 = to3dim(data['image2'])
+
+    img1 = to3dim(data["image1"])
+    img2 = to3dim(data["image2"])
     img1 = np.concatenate([img1, img1, img1], axis=2)
     img2 = np.concatenate([img2, img2, img2], axis=2)
-    return cv2.drawMatches(img1, keypoints1, img2, keypoints2, matches,
-                           None, matchColor=(0,255,0), singlePointColor=(0, 0, 255))
+    return cv2.drawMatches(
+        img1,
+        keypoints1,
+        img2,
+        keypoints2,
+        matches,
+        None,
+        matchColor=(0, 255, 0),
+        singlePointColor=(0, 0, 255),
+    )
 
 
-def drawBox(points, img, offset=np.array([0,0]), color=(0,255,0)):
-#     print("origin", points)
+def drawBox(points, img, offset=np.array([0, 0]), color=(0, 255, 0)):
+    #     print("origin", points)
     offset = offset[::-1]
-    points = points + offset    
+    points = points + offset
     points = points.astype(int)
     for i in range(len(points)):
-        img = img + cv2.line(np.zeros_like(img),tuple(points[-1+i]), tuple(points[i]), color,5)
+        img = img + cv2.line(
+            np.zeros_like(img), tuple(points[-1 + i]), tuple(points[i]), color, 5
+        )
     return img
-

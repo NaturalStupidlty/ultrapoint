@@ -27,8 +27,8 @@ data:
                     prob_range:
                     - 0
                     - 0.0035
-                motion_blur:
-                    max_kernel_size: 3
+                motion_blur: {max_kernel_size: 3}
+                gaussian_blur: {sigma: 0.2}
                 random_brightness:
                     max_abs_change: 50
                 random_contrast:
@@ -39,11 +39,6 @@ data:
             random_order: true
     cache_in_memory: false
     dataset: ImagesDataset
-    gaussian_label:
-        enable: true
-        params:
-            GaussianBlur:
-                sigma: 0.2
     homography_adaptation:
         enable: false
     num_parallel_calls: 10

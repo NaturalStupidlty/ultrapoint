@@ -9,17 +9,12 @@ from ultrapoint.datasets.image_loader import ImageLoader
 from ultrapoint.utils.homographies import sample_homography
 from ultrapoint.utils.image_helpers import read_image
 from ultrapoint.utils.utils import compute_valid_mask
-from ultrapoint.utils.photometric import (
-    ImgAugTransform,
-    imgPhotometric,
-)
+from ultrapoint.utils.photometric import imgPhotometric
 from ultrapoint.utils.utils import (
     inv_warp_image,
     inv_warp_image_batch,
 )
-from ultrapoint.datasets.data_tools import np_to_tensor
 from ultrapoint.datasets.data_tools import warpLabels
-from ultrapoint.utils.torch_helpers import squeeze_to_numpy
 
 
 class ImagesDataset(Dataset):
@@ -33,17 +28,18 @@ class ImagesDataset(Dataset):
             config[f"{mode}_images_folder"], config[f"{mode}_labels_folder"]
         )
 
-        self._config["augmentation"]["photometric"]["enable"] = config["augmentation"][
-            "photometric"
-        ][f"enable_{mode}"]
-        self._enable_photo_train = config["augmentation"]["photometric"]["enable_train"]
-        self._enable_homo_train = config["augmentation"]["homographic"]["enable_train"]
-        self._enable_homo_val = config["augmentation"]["homographic"]["enable_val"]
-        self._enable_photo_val = config["augmentation"]["photometric"]["enable_val"]
+        photometric_augmentations = config["augmentation"]["photometric"]
+        homographic_augmentations = config["augmentation"]["homographic"]
+        self._config["augmentation"]["photometric"]["enable"] = (
+            photometric_augmentations[f"enable_{mode}"]
+        )
+        self._enable_photo_train = photometric_augmentations["enable_train"]
+        self._enable_homo_train = homographic_augmentations["enable_train"]
+        self._enable_homo_val = homographic_augmentations["enable_val"]
+        self._enable_photo_val = photometric_augmentations["enable_val"]
 
         self._cell_size = 8
         self._resize = config.get("preprocessing", {}).get("resize", None)
-        self._gaussian_label = config.get("gaussian_label", {}).get("enable", False)
 
     def __len__(self):
         return len(self._samples)
@@ -145,7 +141,7 @@ class ImagesDataset(Dataset):
             labels_res = torch.zeros((2, H, W)).type(torch.FloatTensor)
             input.update({"labels_res": labels_res})
 
-            if (self._enable_homo_train == True and self._mode == "train") or (
+            if (self._enable_homo_train is True and self._mode == "train") or (
                 self._enable_homo_val and self._mode == "val"
             ):
                 homography = sample_homography(
@@ -161,7 +157,7 @@ class ImagesDataset(Dataset):
                 inv_homography = inv(homography)
                 inv_homography = torch.tensor(inv_homography).to(torch.float32)
                 homography = torch.tensor(homography).to(torch.float32)
-                #                 img = torch.from_numpy(img)
+
                 warped_img = inv_warp_image(
                     img_aug.squeeze(), inv_homography, mode="bilinear"
                 ).unsqueeze(0)
@@ -223,22 +219,12 @@ class ImagesDataset(Dataset):
                         warped_img.numpy().squeeze(), self._config["augmentation"]
                     )  # numpy array (H, W, 1)
                     warped_img = torch.tensor(warped_img, dtype=torch.float32)
-                    pass
-                warped_img = warped_img.view(-1, H, W)
 
-                # warped_labels = warpLabels(pnts, H, W, homography)
+                warped_img = warped_img.view(-1, H, W)
                 warped_set = warpLabels(pnts, H, W, homography, bilinear=True)
                 warped_labels = warped_set["labels"]
                 warped_res = warped_set["res"]
                 warped_res = warped_res.transpose(1, 2).transpose(0, 1)
-                if self._gaussian_label:
-                    warped_labels_bi = warped_set["labels_bi"]
-                    warped_labels_gaussian = self.gaussian_blur(
-                        squeeze_to_numpy(warped_labels_bi)
-                    )
-                    warped_labels_gaussian = np_to_tensor(warped_labels_gaussian, H, W)
-                    input["warped_labels_gaussian"] = warped_labels_gaussian
-                    input.update({"warped_labels_bi": warped_labels_bi})
 
                 input.update(
                     {
@@ -259,30 +245,7 @@ class ImagesDataset(Dataset):
                     {"homographies": homography, "inv_homographies": inv_homography}
                 )
 
-            if self._gaussian_label:
-                labels_gaussian = self.gaussian_blur(squeeze_to_numpy(labels_2D))
-                labels_gaussian = np_to_tensor(labels_gaussian, H, W)
-                input["labels_2D_gaussian"] = labels_gaussian
-
         name = sample["name"]
         input.update({"name": name, "scene_name": "./"})  # dummy scene name
 
         return input
-
-    ## util functions
-    def gaussian_blur(self, image: numpy.ndarray) -> numpy.ndarray:
-        """
-        image: np [H, W]
-        return:
-            blurred_image: np [H, W]
-        """
-        augmentation_config = {
-            "photometric": {
-                "enable": True,
-                "params": self._config["gaussian_label"]["params"],
-            }
-        }
-        augmentation = ImgAugTransform(**augmentation_config)
-        image = image[:, :, numpy.newaxis]
-        heatmaps = augmentation(image)
-        return heatmaps.squeeze()

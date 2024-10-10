@@ -4,7 +4,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 from loguru import logger
 
-from ultrapoint.utils.torch_helpers import to_numpy
+from ultrapoint.utils.torch_helpers import torch_to_numpy
 from ultrapoint.utils.utils import saveImg
 from ultrapoint.utils.utils import precisionRecall_torch
 from ultrapoint.utils.utils import (
@@ -25,7 +25,7 @@ def thd_img(img, thd=0.015):
     return img
 
 
-def img_overlap(img_r, img_g, img_gray):  # img_b repeat
+def img_overlap(img_r, img_g, img_gray):
     img = np.concatenate((img_gray, img_gray, img_gray), axis=0)
     img[0, :, :] += img_r[0, :, :]
     img[1, :, :] += img_g[0, :, :]
@@ -130,9 +130,9 @@ class TensorboardLogger:
         semi_warp_thd = thd_img(semi_warp_flat, thd=thd)
 
         result_overlap = img_overlap(
-            to_numpy(labels_2D[0, :, :, :]),
-            to_numpy(semi_thd),
-            to_numpy(img[0, :, :, :]),
+            torch_to_numpy(labels_2D[0, :, :, :]),
+            torch_to_numpy(semi_thd),
+            torch_to_numpy(img[0, :, :, :]),
         )
 
         self._writer.add_image(
@@ -143,9 +143,9 @@ class TensorboardLogger:
         )  # rgb to bgr * 255
 
         result_overlap = img_overlap(
-            to_numpy(labels_warp_2D[0, :, :, :]),
-            to_numpy(semi_warp_thd),
-            to_numpy(img_warp[0, :, :, :]),
+            torch_to_numpy(labels_warp_2D[0, :, :, :]),
+            torch_to_numpy(semi_warp_thd),
+            torch_to_numpy(img_warp[0, :, :, :]),
         )
         self._writer.add_image(
             task + "-warp_detector_output_thd_overlay", result_overlap, iteration
@@ -155,9 +155,9 @@ class TensorboardLogger:
         )  # rgb to bgr * 255
 
         mask_overlap = img_overlap(
-            to_numpy(1 - mask_warp_2D[0, :, :, :]) / 2,
-            np.zeros_like(to_numpy(img_warp[0, :, :, :])),
-            to_numpy(img_warp[0, :, :, :]),
+            torch_to_numpy(1 - mask_warp_2D[0, :, :, :]) / 2,
+            np.zeros_like(torch_to_numpy(img_warp[0, :, :, :])),
+            torch_to_numpy(img_warp[0, :, :, :]),
         )
 
         for i in range(self._config["model"]["batch_size"]):
@@ -233,7 +233,7 @@ class TensorboardLogger:
         precision_recall_boxnms_list = []
         for idx in range(batch_size):
             semi_flat_tensor = flattenDetection(semi[idx, :, :, :]).detach()
-            semi_flat = to_numpy(semi_flat_tensor)
+            semi_flat = torch_to_numpy(semi_flat_tensor)
             semi_thd = np.squeeze(semi_flat, 0)
             pts_nms = getPtsFromHeatmap(semi_thd, conf_thresh, nms_dist)
             semi_thd_nms_sample = np.zeros_like(semi_thd)
@@ -251,7 +251,7 @@ class TensorboardLogger:
                 result_overlap = img_overlap(
                     np.expand_dims(label_sample_nms_sample, 0),
                     np.expand_dims(semi_thd_nms_sample, 0),
-                    to_numpy(img[idx, :, :, :]),
+                    torch_to_numpy(img[idx, :, :, :]),
                 )
                 self._writer.add_image(
                     task + "-detector_output_thd_overlay-NMS" + "/%d" % idx,
@@ -274,7 +274,7 @@ class TensorboardLogger:
                     result_overlap = img_overlap(
                         np.expand_dims(label_sample_nms_sample, 0),
                         semi_flat_tensor_nms.numpy()[np.newaxis, :, :],
-                        to_numpy(img[idx, :, :, :]),
+                        torch_to_numpy(img[idx, :, :, :]),
                     )
                     self._writer.add_image(
                         task + "-detector_output_thd_overlay-boxNMS" + "/%d" % idx,

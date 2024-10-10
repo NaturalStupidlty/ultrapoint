@@ -21,7 +21,6 @@ class TrainerHeatmap(Trainer):
 
     def __init__(self, config, save_path, device=None):
         super().__init__(config, save_path, device)
-        self._gaussian = config["data"]["gaussian_label"]["enable"]
 
     def detector_loss(self, input, target, mask=None, loss_type="softmax"):
         """
@@ -121,14 +120,9 @@ class TrainerHeatmap(Trainer):
         # detector loss
         from src.ultrapoint.utils.utils import labels2Dto3D
 
-        if self._gaussian:
-            labels_2D = sample["labels_2D_gaussian"]
-            if if_warp:
-                warped_labels = sample["warped_labels_gaussian"]
-        else:
-            labels_2D = sample["labels_2D"]
-            if if_warp:
-                warped_labels = sample["warped_labels"]
+        labels_2D = sample["labels_2D"]
+        if if_warp:
+            warped_labels = sample["warped_labels"]
 
         add_dustbin = False
         if det_loss_type == "l2":
@@ -223,7 +217,6 @@ class TrainerHeatmap(Trainer):
                 * to_floatTensor(heatmap_org_nms_batch).unsqueeze(1),
                 heatmap_org,
                 sample["labels_res"],
-                name="original_pred",
             )
             loss_res_ori = (outs_res["loss"] ** 2).mean()
             # warped: pred
@@ -233,7 +226,6 @@ class TrainerHeatmap(Trainer):
                     * to_floatTensor(heatmap_warp_nms_batch).unsqueeze(1),
                     heatmap_warp,
                     sample["warped_res"],
-                    name="warped_pred",
                 )
                 loss_res_warp = (outs_res_warp["loss"] ** 2).mean()
             else:
@@ -289,20 +281,19 @@ class TrainerHeatmap(Trainer):
                 # image overlap
                 from src.ultrapoint.utils.draw import img_overlap
 
-                # result_overlap = img_overlap(img_r, img_g, img_gray)
                 # overlap label, nms, img
                 nms_overlap = [
                     img_overlap(
-                        to_numpy(labels_warp_2D[i]),
+                        torch_to_numpy(labels_warp_2D[i]),
                         heatmap_nms_batch[i],
-                        to_numpy(img_warp[i]),
+                        torch_to_numpy(img_warp[i]),
                     )
                     for i in range(heatmap_nms_batch.shape[0])
                 ]
                 nms_overlap = numpy.stack(nms_overlap, axis=0)
                 images_dict.update({name + "_nms_overlap": nms_overlap})
 
-            from src.ultrapoint.utils.torch_helpers import to_numpy
+            from src.ultrapoint.utils.torch_helpers import torch_to_numpy
 
             update_overlap(
                 self.images_dict,
@@ -315,7 +306,7 @@ class TrainerHeatmap(Trainer):
             update_overlap(
                 self.images_dict,
                 labels_2D,
-                to_numpy(heatmap_org),
+                torch_to_numpy(heatmap_org),
                 img,
                 "original_heatmap",
             )
@@ -330,29 +321,12 @@ class TrainerHeatmap(Trainer):
                 update_overlap(
                     self.images_dict,
                     labels_warp_2D,
-                    to_numpy(heatmap_warp),
+                    torch_to_numpy(heatmap_warp),
                     img_warp,
                     "warped_heatmap",
                 )
             # residuals
             from src.ultrapoint.utils.losses import do_log
-
-            if self._gaussian:
-                # original: gt
-                self.get_residual_loss(
-                    sample["labels_2D"],
-                    sample["labels_2D_gaussian"],
-                    sample["labels_res"],
-                    name="original_gt",
-                )
-                if if_warp:
-                    # warped: gt
-                    self.get_residual_loss(
-                        sample["warped_labels"],
-                        sample["warped_labels_gaussian"],
-                        sample["warped_res"],
-                        name="warped_gt",
-                    )
 
             pr_mean = self.batch_precision_recall(
                 to_floatTensor(heatmap_org_nms_batch[:, numpy.newaxis, ...]),
@@ -375,44 +349,24 @@ class TrainerHeatmap(Trainer):
         return:
             heatmap_nms_batch: np [batch, H, W]
         """
-        from src.ultrapoint.utils.torch_helpers import to_numpy
+        from src.ultrapoint.utils.torch_helpers import torch_to_numpy
 
-        heatmap_np = to_numpy(heatmap)
-        ## heatmap_nms
+        heatmap_np = torch_to_numpy(heatmap)
         heatmap_nms_batch = [self.heatmap_nms(h) for h in heatmap_np]  # [batch, H, W]
         heatmap_nms_batch = numpy.stack(heatmap_nms_batch, axis=0)
-        # images_dict.update({name + '_nms_batch': heatmap_nms_batch})
         images_dict.update(
             {name + "_nms_batch": heatmap_nms_batch[:, numpy.newaxis, ...]}
         )
         return heatmap_nms_batch
 
-    def get_residual_loss(self, labels_2D, heatmap, labels_res, name=""):
+    def get_residual_loss(self, labels_2D, heatmap, labels_res):
         if abs(labels_2D).sum() == 0:
             return
         outs_res = self.pred_soft_argmax(
             labels_2D, heatmap, labels_res, patch_size=5, device=self._device
         )
-        self.hist_dict[name + "_resi_loss_x"] = outs_res["loss"][:, 0]
-        self.hist_dict[name + "_resi_loss_y"] = outs_res["loss"][:, 1]
-        err = abs(outs_res["loss"]).mean(dim=0)
-        # print("err[0]: ", err[0])
-        var = abs(outs_res["loss"]).std(dim=0)
-        self.scalar_dict[name + "_resi_loss_x"] = err[0]
-        self.scalar_dict[name + "_resi_loss_y"] = err[1]
-        self.scalar_dict[name + "_resi_var_x"] = var[0]
-        self.scalar_dict[name + "_resi_var_y"] = var[1]
-        self.images_dict[name + "_patches"] = outs_res["patches"]
         return outs_res
 
-    # tb_images_dict.update({'image': sample['image'], 'valid_mask': sample['valid_mask'],
-    #     'labels_2D': sample['labels_2D'], 'warped_img': sample['warped_img'],
-    #     'warped_valid_mask': sample['warped_valid_mask']})
-    # if self.gaussian:
-    #     tb_images_dict.update({'labels_2D_gaussian': sample['labels_2D_gaussian'],
-    #     'labels_2D_gaussian': sample['labels_2D_gaussian']})
-
-    ######## static methods ########
     @staticmethod
     def batch_precision_recall(batch_pred, batch_labels):
         precision_recall_list = []
@@ -521,10 +475,6 @@ class TrainerHeatmap(Trainer):
 
     @staticmethod
     def input_to_imgDict(sample, tb_images_dict):
-        # for e in list(sample):
-        #     print("sample[e]", sample[e].shape)
-        #     if (sample[e]).dim() == 4:
-        #         tb_images_dict[e] = sample[e]
         for e in list(sample):
             element = sample[e]
             if type(element) is torch.Tensor:

@@ -12,7 +12,7 @@ import torch.utils.data
 from loguru import logger
 from ultrapoint.models.models_factory import ModelsFactory
 from ultrapoint.utils.utils import flattenDetection
-from ultrapoint.utils.torch_helpers import to_numpy
+from ultrapoint.utils.torch_helpers import torch_to_numpy
 
 
 class SuperPointFrontend(object):
@@ -329,7 +329,7 @@ class SuperPointFrontend(object):
         if self.subpixel:
             labels_res = outs[2]
             self.pts_subpixel = [
-                self.subpixel_predict(to_numpy(labels_res[i, ...]), pts[i])
+                self.subpixel_predict(torch_to_numpy(labels_res[i, ...]), pts[i])
                 for i in range(batch_size)
             ]
         """
