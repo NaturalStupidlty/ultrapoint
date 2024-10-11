@@ -91,17 +91,6 @@ def extract_patches(label_idx, image, patch_size=7):
     return patches
 
 
-def points_to_4d(points):
-    """
-    input:
-        points: tensor [N, 2] check(y, x)
-    """
-    num_of_points = points.shape[0]
-    cols = torch.zeros(num_of_points, 1).float()
-    points = torch.cat((cols, cols, points.float()), dim=1)
-    return points
-
-
 def soft_argmax_2d(patches, normalized_coordinates=True):
     """
     params:
@@ -121,32 +110,3 @@ def do_log(patches):
     patches[patches < 0] = 1e-6
     patches_log = torch.log(patches)
     return patches_log
-
-
-def subpixel_loss_no_argmax(labels_2D, labels_res, pred_heatmap, **options):
-    # extract points
-    points = labels_2D[...].nonzero()
-    num_points = points.shape[0]
-    if num_points == 0:
-        return 0
-
-    def residual_from_points(labels_res, points):
-        # extract residuals
-        labels_res = labels_res.transpose(1, 2).transpose(2, 3).unsqueeze(1)
-        points_res = labels_res[
-            points[:, 0], points[:, 1], points[:, 2], points[:, 3], :
-        ]  # tensor [N, 2]
-        return points_res
-
-    points_res = residual_from_points(labels_res, points)
-    # print_var(points_res)
-    # extract predicted residuals
-    pred_res = residual_from_points(pred_heatmap, points)
-    # print_var(pred_res)
-
-    # loss
-    loss = points_res - pred_res
-    loss = torch.norm(loss, p=2, dim=-1).mean()
-    # loss = loss.sum()/num_points
-    return loss
-    pass

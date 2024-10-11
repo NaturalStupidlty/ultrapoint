@@ -37,7 +37,7 @@ class TrainerSubpixel(Trainer):
         img, labels_2D, mask_2D = (
             sample["image"],
             sample["labels_2D"],
-            sample["valid_mask"],
+            sample["mask"],
         )
         # img, labels = img.to(self.device), labels_2D.to(self.device)
         labels_res = sample["labels_res"]
@@ -50,7 +50,7 @@ class TrainerSubpixel(Trainer):
         Wc = W // self.cell_size
 
         # zero the parameter gradients
-        self.optimizer.zero_grad()
+        self._optimizer.zero_grad()
 
         # extract patches
         # extract the patches from labels
@@ -121,7 +121,7 @@ class TrainerSubpixel(Trainer):
 
         if train:
             loss.backward()
-            self.optimizer.step()
+            self._optimizer.step()
 
         self.tb_scalar_dict(losses, task)
         if iteration % tb_interval == 0 or task == "val":

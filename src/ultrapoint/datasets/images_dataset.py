@@ -5,10 +5,10 @@ import torchvision
 from numpy.linalg import inv
 from torch.utils.data import Dataset
 
-from ultrapoint.datasets.image_loader import ImageLoader
+from ultrapoint.datasets.loading.image_loader import ImageLoader
 from ultrapoint.utils.homographies import sample_homography
 from ultrapoint.utils.image_helpers import read_image
-from ultrapoint.utils.utils import compute_valid_mask
+from ultrapoint.utils.utils import compute_mask
 from ultrapoint.utils.utils import (
     inv_warp_image,
     inv_warp_image_batch,
@@ -75,11 +75,9 @@ class ImagesDataset(Dataset):
 
         img_aug = torch.tensor(img_aug, dtype=torch.float32).view(-1, H, W)
 
-        valid_mask = compute_valid_mask(
-            torch.tensor([H, W]), inv_homography=torch.eye(3)
-        )
+        mask = compute_mask(torch.tensor([H, W]), inv_homography=torch.eye(3))
         input.update({"image": img_aug})
-        input.update({"valid_mask": valid_mask})
+        input.update({"mask": mask})
 
         if self._config["homography_adaptation"]["enable"]:
             # img_aug = torch.tensor(img_aug)
@@ -112,7 +110,7 @@ class ImagesDataset(Dataset):
             ).unsqueeze(0)
 
             # masks
-            valid_mask = compute_valid_mask(
+            mask = compute_mask(
                 torch.tensor([H, W]),
                 inv_homography=inv_homographies,
                 erosion_radius=self._config["augmentation"]["homographic"][
@@ -122,7 +120,7 @@ class ImagesDataset(Dataset):
             input.update(
                 {
                     "image": warped_img.squeeze(),
-                    "valid_mask": valid_mask,
+                    "mask": mask,
                     "image_2D": img_aug,
                 }
             )
@@ -172,7 +170,7 @@ class ImagesDataset(Dataset):
                 warped_labels = warped_set["labels"]
                 # if self.transform is not None:
                 # warped_img = self.transform(warped_img)
-                valid_mask = compute_valid_mask(
+                mask = compute_mask(
                     torch.tensor([H, W]),
                     inv_homography=inv_homography,
                     erosion_radius=self._config["augmentation"]["homographic"][
@@ -184,7 +182,7 @@ class ImagesDataset(Dataset):
                     {
                         "image": warped_img,
                         "labels_2D": warped_labels,
-                        "valid_mask": valid_mask,
+                        "mask": mask,
                     }
                 )
 
@@ -232,12 +230,12 @@ class ImagesDataset(Dataset):
                 )
 
                 # print('erosion_radius', self.config['warped_pair']['valid_border_margin'])
-                valid_mask = compute_valid_mask(
+                mask = compute_mask(
                     torch.tensor([H, W]),
                     inv_homography=inv_homography,
                     erosion_radius=self._config["warped_pair"]["valid_border_margin"],
                 )  # can set to other value
-                input.update({"warped_valid_mask": valid_mask})
+                input.update({"warped_mask": mask})
                 input.update(
                     {"homographies": homography, "inv_homographies": inv_homography}
                 )

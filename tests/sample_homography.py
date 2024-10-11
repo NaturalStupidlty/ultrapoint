@@ -83,7 +83,7 @@ def test_sample_homography():
     print("end")
 
 
-def test_valid_mask():
+def test_mask():
     from src.ultrapoint.utils.utils import pltImshow
 
     batch_size = 1
@@ -96,13 +96,13 @@ def test_valid_mask():
 
     mat_H = torch.tensor(mat_H, dtype=torch.float32)
     mat_H_inv = torch.stack([torch.inverse(mat_H[i, :, :]) for i in range(batch_size)])
-    from src.ultrapoint.utils.utils import compute_valid_mask, labels2Dto3D
+    from src.ultrapoint.utils.utils import compute_mask, labels2Dto3D
 
     device = "cpu"
     shape = torch.tensor([240, 320])
     for i in range(1):
         r = 3
-        mask_valid = compute_valid_mask(
+        mask_valid = compute_mask(
             shape, inv_homography=mat_H_inv, device=device, erosion_radius=r
         )
         pltImshow(mask_valid[0, :, :])
@@ -121,7 +121,7 @@ def test_valid_mask():
 
 
 if __name__ == "__main__":
-    test_valid_mask()
+    test_mask()
 
 
 """

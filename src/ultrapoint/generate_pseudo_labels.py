@@ -83,7 +83,7 @@ def homography_adaptation(config):
             outputs = combine_heatmap(
                 heatmap,
                 sample["homographies"].to(device),
-                sample["valid_mask"].transpose(0, 1).to(device),
+                sample["mask"].transpose(0, 1).to(device),
                 device,
             )
             points = superpoint_wrapper.getPtsFromHeatmap(

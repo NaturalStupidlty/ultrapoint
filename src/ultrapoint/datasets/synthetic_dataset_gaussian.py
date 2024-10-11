@@ -15,7 +15,7 @@ from src.ultrapoint.datasets import synthetic_dataset
 from src.ultrapoint.utils.homographies import (
     sample_homography as sample_homography,
 )
-from ultrapoint.utils.utils import compute_valid_mask
+from ultrapoint.utils.utils import compute_mask
 from ultrapoint.utils.utils import inv_warp_image, warp_points
 from ultrapoint.utils.utils import filter_points
 from ultrapoint.datasets.augmentations import ImageAugmentation
@@ -165,10 +165,8 @@ class SyntheticDatasetGaussian(data.Dataset):
                 img = self._transforms(img)
             sample["image"] = img
             # sample = {'image': img, 'labels_2D': labels}
-            valid_mask = compute_valid_mask(
-                torch.tensor([H, W]), inv_homography=torch.eye(3)
-            )
-            sample.update({"valid_mask": valid_mask})
+            mask = compute_mask(torch.tensor([H, W]), inv_homography=torch.eye(3))
+            sample.update({"mask": mask})
             labels_res = get_label_res(H, W, pnts)
             pnts_post = pnts
             # pnts_for_gaussian = pnts
@@ -204,14 +202,14 @@ class SyntheticDatasetGaussian(data.Dataset):
             # sample = {'image': warped_img, 'labels_2D': warped_labels}
             sample["image"] = warped_img
 
-            valid_mask = compute_valid_mask(
+            mask = compute_mask(
                 torch.tensor([H, W]),
                 inv_homography=inv_homography,
                 erosion_radius=self._config["augmentation"]["homographic"][
                     "valid_border_margin"
                 ],
             )  # can set to other value
-            sample.update({"valid_mask": valid_mask})
+            sample.update({"mask": mask})
 
             labels_2D = get_labels(warped_pnts, H, W)
             sample.update({"labels_2D": labels_2D.unsqueeze(0)})
@@ -265,12 +263,12 @@ class SyntheticDatasetGaussian(data.Dataset):
             )
 
             # print('erosion_radius', self.config['warped_pair']['valid_border_margin'])
-            valid_mask = compute_valid_mask(
+            mask = compute_mask(
                 torch.tensor([H, W]),
                 inv_homography=inv_homography,
                 erosion_radius=self._config["warped_pair"]["valid_border_margin"],
             )  # can set to other value
-            sample.update({"warped_valid_mask": valid_mask})
+            sample.update({"warped_mask": mask})
             sample.update(
                 {"homographies": homography, "inv_homographies": inv_homography}
             )

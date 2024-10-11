@@ -1,5 +1,6 @@
 import os
 import itertools
+import numpy
 import torch
 import torch.optim
 import torch.nn as nn
@@ -10,6 +11,7 @@ from typing import Union
 from tqdm import tqdm
 from loguru import logger
 
+from ultrapoint.utils.utils import calculate_precision_recall
 from ultrapoint.loggers.tensorboard import TensorboardLogger
 from ultrapoint.models.models_factory import ModelsFactory
 from ultrapoint.utils.utils import (
@@ -153,7 +155,7 @@ class Trainer:
                 "epoch": self._epoch,
                 "n_iter": self._iteration,
                 "model_state_dict": self.net.module.state_dict(),
-                "optimizer_state_dict": self.optimizer.state_dict(),
+                "optimizer_state_dict": self._optimizer.state_dict(),
                 "loss": self._loss,
             },
             os.path.join(self._checkpoints_path, filename),
@@ -225,9 +227,9 @@ class Trainer:
         Initialize or load the optimizer.
         """
         if optimizer_state_dict:
-            self.optimizer.load_state_dict(optimizer_state_dict)
+            self._optimizer.load_state_dict(optimizer_state_dict)
         else:
-            self.optimizer = optim.Adam(
+            self._optimizer = optim.Adam(
                 self.net.parameters(),
                 lr=self._config["model"]["learning_rate"],
                 betas=(0.9, 0.999),
@@ -284,6 +286,23 @@ class Trainer:
         loss = (loss * mask_3D_flattened).sum()
         loss = loss / (mask_3D_flattened.sum() + 1e-10)
         return loss
+
+    @staticmethod
+    def precision_recall(predictions, labels):
+        precision_recall_list = []
+        for i in range(labels.shape[0]):
+            precision_recall = calculate_precision_recall(predictions[i], labels[i])
+            precision_recall_list.append(precision_recall)
+        precision = numpy.mean(
+            [
+                precision_recall["precision"]
+                for precision_recall in precision_recall_list
+            ]
+        )
+        recall = numpy.mean(
+            [precision_recall["recall"] for precision_recall in precision_recall_list]
+        )
+        return {"precision": precision, "recall": recall}
 
     @staticmethod
     def interpolate_to_dense(coarse_desc, cell_size=8):

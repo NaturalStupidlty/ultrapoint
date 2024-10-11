@@ -18,7 +18,7 @@ from ultrapoint.utils.torch_helpers import (
 from ultrapoint.utils.utils import inv_warp_image_batch, saveImg
 from ultrapoint.utils.image_helpers import read_image
 from ultrapoint.utils.draw import draw_keypoints
-from ultrapoint.utils.utils import compute_valid_mask
+from ultrapoint.utils.utils import compute_mask
 
 
 def combine_heatmap(heatmap, inv_homographies, mask_2d, device):
@@ -69,7 +69,7 @@ def inference(config, images_folder: str, output_directory: str):
                 "image": torch.Tensor(
                     read_image(str(filename), config["data"]["preprocessing"]["resize"])
                 ).unsqueeze(0),
-                "valid_mask": compute_valid_mask(
+                "mask": compute_mask(
                     torch.tensor(config["data"]["preprocessing"]["resize"]),
                     inv_homography=torch.eye(3),
                 ),
@@ -83,7 +83,7 @@ def inference(config, images_folder: str, output_directory: str):
             outputs = combine_heatmap(
                 heatmap,
                 None,
-                sample["valid_mask"].unsqueeze(0).transpose(0, 1).to(device),
+                sample["mask"].unsqueeze(0).transpose(0, 1).to(device),
                 device,
             )
             points = superpoint_wrapper.getPtsFromHeatmap(

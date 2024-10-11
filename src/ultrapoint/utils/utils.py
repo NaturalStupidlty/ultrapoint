@@ -188,13 +188,7 @@ def labels2Dto3D(labels, cell_size, add_dustbin=True):
     batch_size, channel, H, W = labels.shape
     Hc, Wc = H // cell_size, W // cell_size
     space2depth = SpaceToDepth(8)
-    # labels = space2depth(labels).squeeze(0)
     labels = space2depth(labels)
-    # labels = labels.view(batch_size, H, 1, W, 1)
-    # labels = labels.view(batch_size, Hc, cell_size, Wc, cell_size)
-    # labels = labels.transpose(1, 2).transpose(3, 4).transpose(2, 3)
-    # labels = labels.reshape(batch_size, 1, cell_size ** 2, Hc, Wc)
-    # labels = labels.view(batch_size, cell_size ** 2, Hc, Wc)
     if add_dustbin:
         dustbin = labels.sum(dim=1)
         dustbin = 1 - dustbin
@@ -424,7 +418,7 @@ def nms_fast(in_corners, H, W, dist_thresh):
     return out, out_inds
 
 
-def compute_valid_mask(image_shape, inv_homography, device="cpu", erosion_radius=0):
+def compute_mask(image_shape, inv_homography, device="cpu", erosion_radius=0):
     """
     Compute a boolean mask of the valid pixels resulting from an homography applied to
     an image of a given shape. Pixels that are False correspond to bordering artifacts.
@@ -622,7 +616,7 @@ def descriptor_loss(
     return loss_desc, mask, pos_sum, neg_sum
 
 
-def precisionRecall_torch(pred, labels):
+def calculate_precision_recall(pred, labels):
     offset = 10**-6
     assert (
         pred.size() == labels.size()
