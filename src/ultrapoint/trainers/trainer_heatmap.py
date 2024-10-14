@@ -1,4 +1,5 @@
 import numpy
+import numpy as np
 import torch
 import torch.optim
 import torch.utils.data
@@ -167,16 +168,12 @@ class TrainerHeatmap(Trainer):
 
             heatmap_org = flattenDetection(outputs["semi"])
             heatmap_org_nms_batch = self.heatmap_to_nms(heatmap_org)
+
             # if self._image_warping:
             #     heatmap_warp = flattenDetection(outputs["semi_warp"])
             #     heatmap_warp_nms_batch = self.heatmap_to_nms(heatmap_warp)
 
-            self._tensorboard_logger.log_image(
-                task,
-                heatmap_org[0],
-                iteration,
-                "logged_image",
-            )
+            self._log_random_sample(task, sample, heatmap_org_nms_batch, iteration)
 
             if self._image_warping:
                 pass
@@ -208,8 +205,57 @@ class TrainerHeatmap(Trainer):
 
         return outputs
 
-    def _log_random_sample(self):
-        pass
+    def _log_random_sample(
+        self,
+        task: str,
+        sample: dict,
+        predictions_heatmap: numpy.ndarray,
+        iteration: int,
+    ):
+        import cv2
+
+        random_sample_index = np.random.randint(0, len(sample["image"]))
+        predictions = predictions_heatmap[random_sample_index]
+        labels = sample["labels_2D"][random_sample_index].squeeze()
+        raw_image = sample["image"][random_sample_index].squeeze().numpy()
+        raw_image = 255 - cv2.cvtColor(raw_image, cv2.COLOR_GRAY2RGB)
+        predictions_image = raw_image.copy()
+        labels_image = raw_image.copy()
+
+        keypoints_coordinates = np.where(predictions > 0.0)
+        labels_coordinates = np.where(labels > 0.0)
+
+        self._tensorboard_logger.log_image(task, raw_image, iteration, "raw")
+        for y, x in zip(*keypoints_coordinates):
+            predictions_image = cv2.circle(
+                predictions_image, (x, y), radius=1, color=(255, 0, 0), thickness=-1
+            )
+        self._tensorboard_logger.log_image(
+            task,
+            predictions_image,
+            iteration,
+            "predictions",
+        )
+        for y, x in zip(*labels_coordinates):
+            labels_image = cv2.circle(
+                labels_image, (x, y), radius=2, color=(0, 255, 0), thickness=-1
+            )
+        self._tensorboard_logger.log_image(
+            task,
+            labels_image,
+            iteration,
+            "labels",
+        )
+        for y, x in zip(*keypoints_coordinates):
+            labels_image = cv2.circle(
+                labels_image, (x, y), radius=1, color=(255, 0, 0), thickness=-1
+            )
+        self._tensorboard_logger.log_image(
+            task,
+            labels_image,
+            iteration,
+            "predictions_labels",
+        )
 
     @staticmethod
     def heatmap_to_nms(heatmap):

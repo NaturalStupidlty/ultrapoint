@@ -17,7 +17,9 @@ class TensorboardLogger:
         image: torch.Tensor,
         iteration: int,
         name: str,
-        index: int = None,
+        group: str = "images",
+        normalize: bool = True,
+        dataformats: str = "HWC",
     ) -> None:
         """
         Log a single image to TensorBoard.
@@ -30,14 +32,25 @@ class TensorboardLogger:
                       Expected shape is (C, H, W).
         :param iteration: The current iteration number for logging.
         :param name: The name for the image category.
-        :param index: An optional index for naming the logged image when logging a batch.
-                      If provided, it will be included in the TensorBoard path.
+        :param group: The group name for the image category.
+                      Default is "images".
+        :param normalize: Whether to normalize the image tensor before logging.
+                          Default is True.
+        :param dataformats: The format of the input image tensor.
+                            Default is "HWC" (Height, Width, Channels).
         """
-        if index is not None:
-            self._writer.add_image(f"{task}/{name}/{index}", image, iteration)
-        else:
-            self._writer.add_image(f"{task}/{name}", image, iteration)
+        if normalize:
+            image = image / 255.0
+        self._writer.add_image(
+            f"{task}/{group}/{name}", image, iteration, dataformats=dataformats
+        )
 
-    def log_scalars(self, iteration: int, scalars: dict, task: str = "training"):
+    def log_scalars(
+        self,
+        iteration: int,
+        scalars: dict,
+        task: str = "training",
+        group: str = "metrics",
+    ) -> None:
         for name, scalar in scalars.items():
-            self._writer.add_scalar(f"{task}/{name}", scalar, iteration)
+            self._writer.add_scalar(f"{task}/{group}/{name}", scalar, iteration)
