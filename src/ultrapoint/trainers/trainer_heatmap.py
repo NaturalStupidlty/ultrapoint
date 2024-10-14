@@ -166,13 +166,9 @@ class TrainerHeatmap(Trainer):
         if iteration % self._config["tensorboard_interval"] == 0 or task == "val":
             logger.info(f"Current iteration: {iteration}")
 
-            heatmap_org = flattenDetection(outputs["semi"])
-            heatmap_org_nms_batch = self.heatmap_to_nms(heatmap_org)
-
-            # if self._image_warping:
-            #     heatmap_warp = flattenDetection(outputs["semi_warp"])
-            #     heatmap_warp_nms_batch = self.heatmap_to_nms(heatmap_warp)
-
+            heatmap_org_nms_batch = self.heatmap_to_nms(
+                flattenDetection(outputs["semi"])
+            )
             self._log_random_sample(task, sample, heatmap_org_nms_batch, iteration)
 
             if self._image_warping:
