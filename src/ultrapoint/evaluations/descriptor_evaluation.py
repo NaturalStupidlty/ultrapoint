@@ -84,23 +84,23 @@ def compute_homography(
     keypoints = data["prob"][:, [1, 0]]
     # warped_keypoints = data['warped_prob'][:,:2]
     warped_keypoints = data["warped_prob"][:, [1, 0]]
-    # desc = data['desc'][keypoints[:, 0], keypoints[:, 1]]
+    # descriptor = data['descriptor'][keypoints[:, 0], keypoints[:, 1]]
     # warped_desc = data['warped_desc'][warped_keypoints[:, 0],
     #                                   warped_keypoints[:, 1]]
-    desc = data["desc"]
+    descriptor = data["descriptor"]
     warped_desc = data["warped_desc"]
 
     # Match the keypoints with the warped_keypoints with nearest neighbor search
     # def get_matches():
     if orb:
-        desc = desc.astype(np.uint8)
+        descriptor = descriptor.astype(np.uint8)
         warped_desc = warped_desc.astype(np.uint8)
         bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
     else:
         bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
-    print("desc: ", desc.shape)
-    print("w desc: ", warped_desc.shape)
-    cv2_matches = bf.match(desc, warped_desc)
+    print("descriptor: ", descriptor.shape)
+    print("w descriptor: ", warped_desc.shape)
+    cv2_matches = bf.match(descriptor, warped_desc)
     matches_idx = np.array([m.queryIdx for m in cv2_matches])
     m_keypoints = keypoints[matches_idx, :]
     matches_idx = np.array([m.trainIdx for m in cv2_matches])
@@ -110,7 +110,7 @@ def compute_homography(
     print(f"matches: {matches.shape}")
     # get_matches()
     # from export_classical import get_sift_match
-    # data = get_sift_match(sift_kps_ii=keypoints, sift_des_ii=desc,
+    # data = get_sift_match(sift_kps_ii=keypoints, sift_des_ii=descriptor,
     # sift_kps_jj=warped_keypoints, sift_des_jj=warped_desc, if_BF_matcher=True)
     # matches_pts = data['match_quality_good']
     # cv_matches = data['cv_matches']

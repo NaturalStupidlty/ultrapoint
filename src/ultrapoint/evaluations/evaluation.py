@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import numpy as np
-from src.ultrapoint.evaluations.descriptor_evaluation import compute_homography
+from src.ultrapoint.evaluations.descriptorriptor_evaluation import compute_homography
 from src.ultrapoint.evaluations.detector_evaluation import compute_repeatability
 import cv2
 import matplotlib.pyplot as plt
@@ -133,8 +133,8 @@ def evaluate(args, **options):
         # unwarp
         # prob = data['prob']
         # warped_prob = data['prob']
-        # desc = data['desc']
-        # warped_desc = data['warped_desc']
+        # descriptor = data['descriptor']
+        # warped_descriptor = data['warped_descriptor']
         # homography = data['homography']
         real_H = data["homography"]
         image = data["image"]
@@ -226,15 +226,15 @@ def evaluate(args, **options):
                 def getMatches(data):
                     from src.ultrapoint.models import PointTracker
 
-                    desc = data["desc"]
-                    warped_desc = data["warped_desc"]
+                    descriptor = data["descriptor"]
+                    warped_descriptor = data["warped_descriptor"]
 
                     nn_thresh = 1.2
                     print("nn threshold: ", nn_thresh)
                     tracker = PointTracker(max_length=2, nn_thresh=nn_thresh)
-                    # matches = tracker.nn_match_two_way(desc, warped_desc, nn_)
-                    tracker.update(keypoints.T, desc.T)
-                    tracker.update(warped_keypoints.T, warped_desc.T)
+                    # matches = tracker.nn_match_two_way(descriptor, warped_descriptor, nn_)
+                    tracker.update(keypoints.T, descriptor.T)
+                    tracker.update(warped_keypoints.T, warped_descriptor.T)
                     matches = tracker.get_matches().T
                     mscores = tracker.get_mscores().T
 

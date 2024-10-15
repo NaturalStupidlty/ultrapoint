@@ -14,10 +14,7 @@ from loguru import logger
 from ultrapoint.utils.utils import calculate_precision_recall
 from ultrapoint.loggers.tensorboard import TensorboardLogger
 from ultrapoint.models.models_factory import ModelsFactory
-from ultrapoint.utils.utils import (
-    labels2Dto3D,
-    labels2Dto3D_flattened,
-)
+from ultrapoint.utils.utils import labels2Dto3D
 from ultrapoint.utils.torch_helpers import (
     determine_device,
     clear_memory,
@@ -239,21 +236,6 @@ class Trainer:
         raise NotImplementedError("This method should be implemented in child classes")
 
     @staticmethod
-    def get_labels(labels_2D, cell_size, device):
-        """
-        # transform 2D labels to 3D shape for training
-        :param labels_2D:
-        :param cell_size:
-        :param device:
-        :return:
-        """
-        labels3D_flattened = labels2Dto3D_flattened(
-            labels_2D.to(device), cell_size=cell_size
-        )
-        labels3D_in_loss = labels3D_flattened
-        return labels3D_in_loss
-
-    @staticmethod
     def get_masks(mask_2D, cell_size, device="cpu"):
         """
         # 2D mask is constructed into 3D (Hc, Wc) space for training
@@ -272,22 +254,6 @@ class Trainer:
         return mask_3D_flattened
 
     @staticmethod
-    def get_loss(semi, labels3D_in_loss, mask_3D_flattened, device="cpu"):
-        """
-        ## deprecated: loss function
-        :param semi:
-        :param labels3D_in_loss:
-        :param mask_3D_flattened:
-        :param device:
-        :return:
-        """
-        loss_func = nn.CrossEntropyLoss(reduce=False).to(device)
-        loss = loss_func(semi, labels3D_in_loss)
-        loss = (loss * mask_3D_flattened).sum()
-        loss = loss / (mask_3D_flattened.sum() + 1e-10)
-        return loss
-
-    @staticmethod
     def precision_recall(predictions, labels):
         precision_recall_list = []
         for i in range(labels.shape[0]):
@@ -303,18 +269,3 @@ class Trainer:
             [precision_recall["recall"] for precision_recall in precision_recall_list]
         )
         return {"precision": precision, "recall": recall}
-
-    @staticmethod
-    def interpolate_to_dense(coarse_desc, cell_size=8):
-        dense_desc = nn.functional.interpolate(
-            coarse_desc, scale_factor=(cell_size, cell_size), mode="bilinear"
-        )
-
-        # norm the descriptor
-        def norm_desc(desc):
-            dn = torch.norm(desc, p=2, dim=1)  # Compute the norm.
-            desc = desc.div(torch.unsqueeze(dn, 1))  # Divide by norm to normalize.
-            return desc
-
-        dense_desc = norm_desc(dense_desc)
-        return dense_desc

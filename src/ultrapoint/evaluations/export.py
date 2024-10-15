@@ -11,26 +11,19 @@ from ultrapoint.loggers.loguru import create_logger, logger, log_data_size
 from ultrapoint.dataloaders import DataLoadersFactory
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.torch_helpers import squeeze_to_numpy
-from ultrapoint.models.model_wrap import PointTracker
+from ultrapoint.evaluations.point_tracker import PointTracker
 
 
-def get_keypoints(model, img, subpixel: bool = None, patch_size: int = None):
+def get_keypoints(model, img):
     """
     pts: list [numpy (3, N)]
     desc: list [numpy (256, N)]
     """
-    assert subpixel is None or patch_size is not None
-
     # heatmap: numpy [batch, 1, H, W]
-    heatmap = model.run(img.to(model._device))
+    heatmap = model.__call__(img.to(model._device))
     points = model.heatmap_to_pts(heatmap)
 
-    if subpixel:
-        points = model.soft_argmax_points(points, patch_size=patch_size)
-
     desc_sparse = model.sparsify_descriptors()
-    print("points[0]: ", points[0].shape, ", desc_sparse[0]: ", desc_sparse[0].shape)
-    print("points[0]: ", points[0].shape)
 
     return points[0], desc_sparse[0]
 
@@ -61,20 +54,13 @@ def export_descriptors(config, output_directory):
     model_trainer.val_loader = val_loader
 
     # tracker
-    tracker = PointTracker(max_length=2, nn_thresh=model_trainer.nn_thresh)
-
-    subpixel = config["model"]["subpixel"]["enable"]
-    patch_size = config["model"]["subpixel"]["patch_size"]
+    tracker = PointTracker(max_length=2, nn_thresh=model_trainer._nn_thresh)
 
     for sample_index, sample in tqdm(enumerate(val_loader)):
         image_0, image_1 = sample["image"], sample["warped_image"]
-        points0, descriptors0 = get_keypoints(
-            model_trainer, image_0, subpixel, patch_size
-        )
+        points0, descriptors0 = get_keypoints(model_trainer, image_0)
         tracker.update(points0, descriptors0)
-        points1, descriptors1 = get_keypoints(
-            model_trainer, image_1, subpixel, patch_size
-        )
+        points1, descriptors1 = get_keypoints(model_trainer, image_1)
         tracker.update(points1, descriptors1)
         matches = tracker.get_matches()
         tracker.clear_desc()

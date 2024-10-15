@@ -1,10 +1,9 @@
-from ultrapoint.trainers.trainer_subpixel import TrainerSubpixel
 from ultrapoint.trainers.trainer_heatmap import TrainerHeatmap
 
 
+# TODO: Remove and create one trainer
 class TrainersFactory:
     SUPPORTED_TRAINERS = {
-        "TrainerSubpixel": TrainerSubpixel,
         "TrainerHeatmap": TrainerHeatmap,
     }
 

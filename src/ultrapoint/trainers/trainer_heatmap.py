@@ -13,10 +13,12 @@ from ultrapoint.trainers.trainer import Trainer
 from ultrapoint.loggers.loguru import log_losses
 from ultrapoint.utils.loss_functions.detector_loss import detector_loss
 from ultrapoint.utils.torch_helpers import torch_to_numpy
-from ultrapoint.utils.losses import do_log
-from ultrapoint.utils.losses import norm_patches
-from ultrapoint.utils.losses import extract_patches
-from ultrapoint.utils.losses import soft_argmax_2d
+from ultrapoint.utils.losses import (
+    do_log,
+    norm_patches,
+    extract_patches,
+    soft_argmax_2d,
+)
 
 
 class TrainerHeatmap(Trainer):
@@ -24,7 +26,7 @@ class TrainerHeatmap(Trainer):
     heatmap: torch (batch_size, H, W, 1)
     dense_desc: torch (batch_size, H, W, 256)
     pts: [batch_size, np (N, 3)]
-    desc: [batch_size, np(256, N)]
+    descriptor: [batch_size, np(256, N)]
     """
 
     def __init__(self, config, save_path, device=None):
@@ -66,7 +68,7 @@ class TrainerHeatmap(Trainer):
         ).float()
         mask_3D_flattened = self.get_masks(mask, self._cell_size, device=self._device)
         loss_det = detector_loss(
-            predictions=outputs["semi"],
+            predictions=outputs["detector"],
             labels=labels_3D.to(self._device),
             mask=mask_3D_flattened.to(self._device),
             loss_type=self._det_loss_type,
@@ -83,7 +85,7 @@ class TrainerHeatmap(Trainer):
                 warped_mask, self._cell_size, device=self._device
             )
             loss_det_warp = detector_loss(
-                predictions=outputs["semi"],
+                predictions=outputs["detector"],
                 labels=labels_3D.to(self._device),
                 mask=mask_3D_flattened.to(self._device),
                 loss_type=self._det_loss_type,
@@ -96,7 +98,7 @@ class TrainerHeatmap(Trainer):
         if lambda_loss > 0:
             assert self._image_warping is True, "need a pair of images"
             loss_desc, mask, positive_dist, negative_dist = self._descriptor_loss(
-                outputs["desc"],
+                outputs["descriptor"],
                 outputs["desc_warp"],
                 mat_H,
                 mask_valid=mask_desc,
@@ -114,10 +116,10 @@ class TrainerHeatmap(Trainer):
         ##### try to minimize the error ######
         add_res_loss = False
         if add_res_loss and iteration % 10 == 0:
-            heatmap_org = flattenDetection(outputs["semi"])
+            heatmap_org = flattenDetection(outputs["detector"])
             heatmap_org_nms_batch = self.heatmap_to_nms(heatmap_org)
             if self._image_warping:
-                heatmap_warp = flattenDetection(outputs["semi_warp"])
+                heatmap_warp = flattenDetection(outputs["detector_warp"])
                 heatmap_warp_nms_batch = self.heatmap_to_nms(heatmap_warp)
 
             # original: pred
@@ -167,12 +169,9 @@ class TrainerHeatmap(Trainer):
             logger.info(f"Current iteration: {iteration}")
 
             heatmap_org_nms_batch = self.heatmap_to_nms(
-                flattenDetection(outputs["semi"])
+                flattenDetection(outputs["detector"])
             )
             self._log_random_sample(task, sample, heatmap_org_nms_batch, iteration)
-
-            if self._image_warping:
-                pass
 
             metrics = self.precision_recall(
                 torch.tensor(
@@ -190,13 +189,16 @@ class TrainerHeatmap(Trainer):
     def _forward_step(self, sample, warped_sample: None):
         # TODO: rewrite
         outs = self.net(sample)
-        outputs = {"semi": outs["semi"], "desc": outs["desc"]}
+        outputs = {"detector": outs["detector"], "descriptor": outs["descriptor"]}
 
         if self._image_warping:
             assert warped_sample is not None, "Forward step requires warped sample"
             outs_warp = self.net(warped_sample)
             outputs.update(
-                {"semi_warp": outs_warp["semi"], "desc_warp": outs_warp["desc"]}
+                {
+                    "detector_warp": outs_warp["detector"],
+                    "desc_warp": outs_warp["descriptor"],
+                }
             )
 
         return outputs
@@ -273,10 +275,12 @@ class TrainerHeatmap(Trainer):
 
         heatmap = heatmap.squeeze()
         pts_nms = getPtsFromHeatmap(heatmap, conf_thresh, nms_dist)
-        semi_thd_nms_sample = numpy.zeros_like(heatmap)
-        semi_thd_nms_sample[pts_nms[1, :].astype(int), pts_nms[0, :].astype(int)] = 1
+        detector_thd_nms_sample = numpy.zeros_like(heatmap)
+        detector_thd_nms_sample[
+            pts_nms[1, :].astype(int), pts_nms[0, :].astype(int)
+        ] = 1
 
-        return semi_thd_nms_sample
+        return detector_thd_nms_sample
 
     def get_residual_loss(self, labels_2D, heatmap, labels_res):
         if abs(labels_2D).sum() == 0:

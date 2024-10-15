@@ -159,8 +159,6 @@ model:
             lamda_d: 1
             dist: 'cos'
             method: '2d'
-    subpixel:
-        enable: false
     other_settings: 'train 2d, gauss 0.5'
 
 trainer: 'TrainerHeatmap'

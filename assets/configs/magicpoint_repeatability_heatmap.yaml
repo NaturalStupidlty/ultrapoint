@@ -27,9 +27,6 @@ model:
     nn_thresh: 1.0 # 0.7
     homography_adaptation:
         num: 0
-    subpixel: 
-        enable: true
-        patch_size: 5
     rand_noise:
         enable: false
         sigma: 0.2

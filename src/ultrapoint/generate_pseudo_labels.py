@@ -6,8 +6,8 @@ import numpy
 from tqdm import tqdm
 from pathlib import Path
 
-from ultrapoint.models.model_wrap import SuperPointFrontend
-from ultrapoint.models.superpoint.superpoint_pretrained import SuperPoint
+from ultrapoint.models.superpoint.super_point import SuperPointFrontend
+from ultrapoint.models.superpoint.super_point_pretrained import SuperPoint
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.draw import draw_keypoints
 from ultrapoint.dataloaders import DataLoadersFactory
@@ -49,24 +49,13 @@ def homography_adaptation(config):
     os.makedirs(output_directory, exist_ok=True)
 
     top_k = config["model"].get("top_k", -1)
-    nn_thresh = config["model"]["nn_thresh"]
-    conf_thresh = config["model"]["detection_threshold"]
     iterations = config["data"]["homography_adaptation"]["num"]
     logger.info(f"Homography adaptation iterations: {iterations}")
 
     val_loader = DataLoadersFactory.create(
         config, dataset_name=config["data"]["dataset"], mode="val"
     )
-
-    superpoint_wrapper = SuperPointFrontend(
-        config=config,
-        weights_path=config["pretrained"],
-        nms_dist=config["model"]["nms_radius"],
-        conf_thresh=conf_thresh,
-        nn_thresh=nn_thresh,
-        cuda=False,
-        device=device,
-    )
+    superpoint_wrapper = SuperPointFrontend(config)
 
     for sample in tqdm(val_loader, desc="Generating pseudo labels"):
         try:
@@ -77,22 +66,16 @@ def homography_adaptation(config):
                 logger.info(f"File {filename} exists. Skipping.")
                 continue
 
-            heatmap = superpoint_wrapper.run(
-                sample["image"].transpose(0, 1), onlyHeatmap=True, train=False
-            )
+            heatmap = superpoint_wrapper(sample["image"].transpose(0, 1))
             outputs = combine_heatmap(
                 heatmap,
                 sample["homographies"].to(device),
                 sample["mask"].transpose(0, 1).to(device),
                 device,
             )
-            points = superpoint_wrapper.getPtsFromHeatmap(
+            points = superpoint_wrapper.heatmap_to_keypoints(
                 outputs.detach().cpu().squeeze()
             )
-
-            if config["model"]["subpixel"]["enable"] and points.shape[1]:
-                superpoint_wrapper.heatmap = outputs
-                points = superpoint_wrapper.soft_argmax_points([points])[0]
 
             numpy.savez_compressed(
                 os.path.join(output_directory, f"{filename}.npz"),

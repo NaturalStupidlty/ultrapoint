@@ -121,12 +121,7 @@ model:
             method: 2d
             num_masked_non_matches_per_match: 100
             num_matching_attempts: 1000
-    subpixel:
-        enable: false
-        loss_func: "subpixel_loss_no_argmax"
-        params:
-            subpixel_channel: 2
-        settings: predict flow directly
+
 precision: medium
 pretrained: null
 reset_iter: true

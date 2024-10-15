@@ -233,11 +233,11 @@ def labels2Dto3D_flattened(labels, cell_size):
     return labels
 
 
-def flattenDetection(semi, tensor=False):
+def flattenDetection(detector_output):
     """
     Flatten detection output
 
-    :param semi:
+    :param detector_output:
         output from detector head
         tensor [65, Hc, Wc]
         :or
@@ -250,34 +250,14 @@ def flattenDetection(semi, tensor=False):
         tensor (batch_size, 65, Hc, Wc)
 
     """
-    batch = False
-    if len(semi.shape) == 4:
-        batch = True
-        batch_size = semi.shape[0]
-    # if tensor:
-    #     semi.exp_()
-    #     d = semi.sum(dim=1) + 0.00001
-    #     d = d.view(d.shape[0], 1, d.shape[1], d.shape[2])
-    #     semi = semi / d  # how to /(64,15,20)
-
-    #     nodust = semi[:, :-1, :, :]
-    #     heatmap = flatten64to1(nodust, tensor=tensor)
-    # else:
-    # Convert pytorch -> numpy.
-    # --- Process points.
-    # dense = nn.functional.softmax(semi, dim=0) # [65, Hc, Wc]
-    if batch:
-        dense = nn.functional.softmax(semi, dim=1)  # [batch, 65, Hc, Wc]
-        # Remove dustbin.
-        nodust = dense[:, :-1, :, :]
-    else:
-        dense = nn.functional.softmax(semi, dim=0)  # [65, Hc, Wc]
-        nodust = dense[:-1, :, :].unsqueeze(0)
+    dense = nn.functional.softmax(detector_output, dim=1)  # [batch, 65, Hc, Wc]
+    # Remove dustbin.
+    nodust = dense[:, :-1, :, :]
     # Reshape to get full resolution heatmap.
     # heatmap = flatten64to1(nodust, tensor=True) # [1, H, W]
     depth2space = DepthToSpace(8)
     heatmap = depth2space(nodust)
-    heatmap = heatmap.squeeze(0) if not batch else heatmap
+
     return heatmap
 
 
@@ -472,14 +452,6 @@ def denormPts(pts, shape):
     """
     pts = (pts + 1) * shape / 2
     return pts
-
-
-# def subpixel_loss(image, labels, dense_desc, patch_size=8):
-#     # concat image and dense_desc
-#     # extract patches
-
-#     #
-#     pass
 
 
 def descriptor_loss(
