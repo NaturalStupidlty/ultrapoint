@@ -13,8 +13,8 @@ class ImageAugmentation:
                 name, parameters = augmentation.popitem()
                 self._augmentations.append(getattr(albumentations, name)(**parameters))
 
-        if config["photometric"]["random_order"]:
-            random.shuffle(self._augmentations)
+            if config["photometric"]["random_order"]:
+                random.shuffle(self._augmentations)
 
         self._augmentations = albumentations.Compose(self._augmentations)
 
@@ -33,6 +33,7 @@ class ImageAugmentation:
         grayscale: bool = False,
         **config
     ):
+        # TODO: ???
         if image.dtype != np.uint8:
             image = (image * 255).astype(np.uint8)
 

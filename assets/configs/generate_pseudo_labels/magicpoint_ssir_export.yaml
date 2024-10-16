@@ -42,7 +42,7 @@ data:
     val_workers: 16
 
 model:
-    name: 'SuperPointNet'
+    name: 'SuperPoint'
     detection_threshold: 0.005
     nms_radius: 4
     max_num_keypoints: 1024

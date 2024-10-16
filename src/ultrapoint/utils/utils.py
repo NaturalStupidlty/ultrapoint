@@ -271,7 +271,6 @@ def getPtsFromHeatmap(heatmap, conf_thresh, nms_dist):
         np (H, W)
     :return:
     """
-
     border_remove = 4
 
     H, W = heatmap.shape[0], heatmap.shape[1]

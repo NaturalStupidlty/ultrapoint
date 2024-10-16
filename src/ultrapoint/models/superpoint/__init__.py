@@ -1,1 +1,1 @@
-from .super_point_net import SuperPointNet
+from .superpoint import SuperPoint

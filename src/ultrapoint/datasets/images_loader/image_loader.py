@@ -2,7 +2,7 @@ from loguru import logger
 from pathlib import Path
 
 
-class ImageLoader:
+class ImagesLoader:
     SUPPORTED_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".gif")
 
     @staticmethod
@@ -18,7 +18,7 @@ class ImageLoader:
             image_paths = [
                 p
                 for p in base_path.rglob("*")
-                if p.suffix.lower() in ImageLoader.SUPPORTED_EXTENSIONS
+                if p.suffix.lower() in ImagesLoader.SUPPORTED_EXTENSIONS
             ]
             if not image_paths:
                 raise ValueError(

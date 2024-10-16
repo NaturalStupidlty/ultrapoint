@@ -109,8 +109,9 @@ model:
     eval_batch_size: 8
     lambda_loss: 1
     learning_rate: 0.0001
-    name: "SuperPointNet"
-    nms: 4
+    name: "SuperPoint"
+    nms_radius: 4
+    remove_borders: 4
     other_settings: train 2d, gauss 0.2
     params: {}
     sparse_loss:
@@ -129,6 +130,5 @@ save_interval: 2000
 seed: 0
 tensorboard_interval: 200
 train_iter: 200000
-trainer: "TrainerHeatmap"
 validation_interval: 2000
 validation_size: 5

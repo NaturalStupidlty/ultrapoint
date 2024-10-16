@@ -50,12 +50,13 @@ def img_overlap(img_r, img_g, img_gray):  # img_b repeat
     return img
 
 
-def draw_keypoints(img, points, color=(0, 255, 0), radius=3, resize=3):
+def draw_keypoints(img, points, scores, color=(0, 255, 0), radius=3, resize=3):
     """
     Draw keypoints on an image with transparency depending on the score.
 
     :param img: Input image (grayscale or RGB) (numpy [H, W] or [H, W, 3])
-    :param points: Points with scores (numpy [N, 3] where each point is (x, y, score))
+    :param points: Points with scores (numpy [N, 2] where each point is (x, y))
+    :param scores: Scores of the keypoints (numpy [N])
     :param color: Color of the keypoints (default: green)
     :param radius: Radius of the keypoints (default: 3)
     :param resize: Resize factor for the image and points (default: 1)
@@ -72,7 +73,7 @@ def draw_keypoints(img, points, color=(0, 255, 0), radius=3, resize=3):
         return img
 
     overlay = img.copy()
-    for x, y, score in points:
+    for (x, y), score in zip(points, scores):
         alpha = np.clip(score, 0, 1)  # Ensure the score is in [0, 1] range
         point_color = (
             int(color[0]),

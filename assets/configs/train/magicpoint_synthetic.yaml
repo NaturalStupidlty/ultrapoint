@@ -133,7 +133,7 @@ data:
     val_workers: 16
 
 model:
-    name: 'SuperPointNet'
+    name: 'SuperPoint'
     params: {
     }
     detector_loss:
@@ -144,7 +144,8 @@ model:
     learning_rate: 0.001
     kernel_reg: 0.
     detection_threshold: 0.001 # 1/65
-    nms: 4
+    nms_radius: 4
+    remove_borders: 4
     lambda_loss: 0 # disable descriptor loss
     dense_loss:
         enable: false
@@ -161,7 +162,6 @@ model:
             method: '2d'
     other_settings: 'train 2d, gauss 0.5'
 
-trainer: 'TrainerHeatmap'
 train_iter: 200000
 tensorboard_interval: 1000
 save_interval: 2000

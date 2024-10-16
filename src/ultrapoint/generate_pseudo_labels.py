@@ -6,8 +6,8 @@ import numpy
 from tqdm import tqdm
 from pathlib import Path
 
-from ultrapoint.models.superpoint.super_point import SuperPointFrontend
-from ultrapoint.models.superpoint.super_point_pretrained import SuperPoint
+from ultrapoint.models.superpoint.superpoint import SuperPoint
+from ultrapoint.models.superpoint_pretrained.superpoint_pretrained import SuperPoint
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.draw import draw_keypoints
 from ultrapoint.dataloaders import DataLoadersFactory
@@ -55,7 +55,7 @@ def homography_adaptation(config):
     val_loader = DataLoadersFactory.create(
         config, dataset_name=config["data"]["dataset"], mode="val"
     )
-    superpoint_wrapper = SuperPointFrontend(config)
+    superpoint_wrapper = SuperPoint(config)
 
     for sample in tqdm(val_loader, desc="Generating pseudo labels"):
         try:
@@ -175,10 +175,7 @@ def main():
     args = parse_arguments()
     config = load_config(args.config)
     create_logger(**config["logging"])
-    if config["model"]["name"] == "SuperPointPretrained":
-        homography_adaptation_pretrained(config)
-    else:
-        homography_adaptation(config)
+    homography_adaptation_pretrained(config)
 
 
 if __name__ == "__main__":

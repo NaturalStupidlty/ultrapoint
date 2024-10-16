@@ -1,7 +1,7 @@
 import argparse
 
 from ultrapoint.dataloaders import DataLoadersFactory
-from ultrapoint.trainers import TrainersFactory
+from ultrapoint.training import Trainer
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.loggers.loguru import create_logger, log_data_size
 from ultrapoint.utils.utils import prepare_experiment_directory
@@ -17,7 +17,7 @@ def train(config: dict, output_directory: str):
     log_data_size(train_loader, config, tag="train")
     log_data_size(val_loader, config, tag="val")
 
-    model_trainer = TrainersFactory.create(config, config["trainer"], output_directory)
+    model_trainer = Trainer(config, output_directory)
     model_trainer.train_loader = train_loader
     model_trainer.val_loader = val_loader
     model_trainer.train()

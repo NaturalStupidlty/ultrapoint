@@ -1,0 +1,1 @@
+from .superpoint_pretrained import SuperPoint as SuperPointPretrained

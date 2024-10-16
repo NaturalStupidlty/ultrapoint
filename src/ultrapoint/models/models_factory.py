@@ -1,11 +1,13 @@
 from loguru import logger
 
-from ultrapoint.models.superpoint import SuperPointNet
+from ultrapoint.models.superpoint import SuperPoint
+from ultrapoint.models.superpoint_pretrained import SuperPointPretrained
 
 
 class ModelsFactory:
     SUPPORTED_MODELS = {
-        "SuperPointNet": SuperPointNet,
+        "SuperPoint": SuperPoint,
+        "SuperPointPretrained": SuperPointPretrained,
     }
 
     @staticmethod

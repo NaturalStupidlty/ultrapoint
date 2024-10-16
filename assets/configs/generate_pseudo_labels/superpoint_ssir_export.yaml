@@ -52,7 +52,7 @@ model:
     eval_batch_size: 1
 
 pretrained: '../assets/pretrained/superpoint_v6_from_tf.pth'
-skip_existing: true
+skip_existing: false
 save_images: false
 
 seed: 0

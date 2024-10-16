@@ -5,7 +5,7 @@ import numpy as np
 
 from tqdm import tqdm
 
-from ultrapoint.trainers import TrainersFactory
+from ultrapoint.training import TrainersFactory
 from ultrapoint.utils.utils import prepare_experiment_directory
 from ultrapoint.loggers.loguru import create_logger, logger, log_data_size
 from ultrapoint.dataloaders import DataLoadersFactory
@@ -54,7 +54,7 @@ def export_descriptors(config, output_directory):
     model_trainer.val_loader = val_loader
 
     # tracker
-    tracker = PointTracker(max_length=2, nn_thresh=model_trainer._nn_thresh)
+    tracker = PointTracker(max_length=2, nn_thresh=model_trainer._detection_threshold)
 
     for sample_index, sample in tqdm(enumerate(val_loader)):
         image_0, image_1 = sample["image"], sample["warped_image"]

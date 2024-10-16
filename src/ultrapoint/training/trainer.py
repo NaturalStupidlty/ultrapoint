@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.utils.data
 import torch.optim as optim
 
-from typing import Union
+from typing import Union, List
 from tqdm import tqdm
 from loguru import logger
 
@@ -22,6 +22,10 @@ from ultrapoint.utils.torch_helpers import (
     make_deterministic,
 )
 from ultrapoint.utils.config_helpers import save_config
+from ultrapoint.loggers.loguru import log_losses
+from ultrapoint.utils.loss_functions.detector_loss import detector_loss
+from ultrapoint.utils.torch_helpers import torch_to_numpy
+from ultrapoint.utils.utils import flattenDetection
 
 
 class Trainer:
@@ -54,6 +58,10 @@ class Trainer:
         self._checkpoints_path = os.path.join(save_path, "checkpoints")
         os.makedirs(self._checkpoints_path, exist_ok=True)
 
+        self._image_warping = self._config["data"]["warped_pair"]["enable"]
+        self._det_loss_type = self._config["model"]["detector_loss"]["loss_type"]
+        self._add_dustbin = True if self._det_loss_type == "softmax" else False
+        self._scalar_logs = {}
         self._train = False
         self._eval = False
         self._epoch = 0
@@ -211,7 +219,7 @@ class Trainer:
             optimizer_state_dict = None
 
         self.net = ModelsFactory.create(
-            model_name=model_name, state=state_dict, **model_params
+            model_name=model_name, config=self._config, state=state_dict, **model_params
         ).to(self._device)
         self._init_optimizer(optimizer_state_dict)
 
@@ -232,8 +240,216 @@ class Trainer:
                 betas=(0.9, 0.999),
             )
 
-    def process_sample(self, sample, iteration: int, task="val"):
-        raise NotImplementedError("This method should be implemented in child classes")
+    def process_sample(self, sample, iteration=0, task="val"):
+        assert task in ["train", "val"], "task should be either train or val"
+
+        images, labels, mask = (
+            sample["image"].to(self._device),
+            sample["labels_2D"].to(self._device),
+            sample["mask"],
+        )
+        warped_image = None
+        if self._image_warping:
+            warped_image, warped_labels, warped_mask = (
+                sample["warped_img"].to(self._device),
+                sample["warped_labels"],
+                sample["warped_mask"],
+            )
+            mat_H, mat_H_inv = sample["homographies"], sample["inv_homographies"]
+
+        self._optimizer.zero_grad()
+        if task == "train":
+            outputs = self._forward_step(images, warped_sample=warped_image)
+        else:
+            with torch.no_grad():
+                outputs = self._forward_step(images, warped_sample=warped_image)
+
+        labels_3D = labels2Dto3D(
+            labels,
+            cell_size=self._cell_size,
+            add_dustbin=self._add_dustbin,
+        ).float()
+        mask_3D_flattened = self.get_masks(mask, self._cell_size, device=self._device)
+        loss_det = detector_loss(
+            predictions=outputs["detector_features"],
+            labels=labels_3D.to(self._device),
+            mask=mask_3D_flattened.to(self._device),
+            loss_type=self._det_loss_type,
+        )
+        loss_det_warp = torch.tensor([0]).float().to(self._device)
+
+        if self._image_warping:
+            labels_3D = labels2Dto3D(
+                warped_labels.to(self._device),
+                cell_size=self._cell_size,
+                add_dustbin=self._add_dustbin,
+            ).float()
+            mask_3D_flattened = self.get_masks(
+                warped_mask, self._cell_size, device=self._device
+            )
+            loss_det_warp = detector_loss(
+                predictions=outputs["detector_features"],
+                labels=labels_3D.to(self._device),
+                mask=mask_3D_flattened.to(self._device),
+                loss_type=self._det_loss_type,
+            )
+
+        mask_desc = mask_3D_flattened.unsqueeze(1)
+        lambda_loss = self._config["model"]["lambda_loss"]
+
+        # descriptor loss
+        if lambda_loss > 0:
+            assert self._image_warping is True, "need a pair of images"
+            loss_desc, mask, positive_dist, negative_dist = self._descriptor_loss(
+                outputs["descriptor_features"],
+                outputs["warped_descriptor_features"],
+                mat_H,
+                mask_valid=mask_desc,
+                device=self._device,
+                **self._desc_params,
+            )
+        else:
+            ze = torch.tensor([0]).to(self._device)
+            loss_desc, positive_dist, negative_dist = ze, ze, ze
+
+        loss = loss_det + loss_det_warp
+        if lambda_loss > 0:
+            loss += lambda_loss * loss_desc
+
+        self._scalar_logs.update(
+            {
+                "loss": loss,
+                "loss_det": loss_det,
+                "loss_det_warp": loss_det_warp,
+                "positive_dist": positive_dist,
+                "negative_dist": negative_dist,
+            }
+        )
+
+        if task == "train":
+            loss.backward()
+            self._optimizer.step()
+
+        if iteration % self._config["tensorboard_interval"] == 0 or task == "val":
+            logger.info(f"Current iteration: {iteration}")
+
+            heatmap_org_nms_batch = self.heatmap_to_nms(
+                flattenDetection(outputs["detector_features"])
+            )
+            self._log_random_sample(task, sample, outputs["keypoints"], iteration)
+
+            metrics = self.precision_recall(
+                torch.tensor(heatmap_org_nms_batch[:, numpy.newaxis, ...]),
+                sample["labels_2D"],
+            )
+            self._scalar_logs.update(metrics)
+            log_losses(self._scalar_logs, task)
+
+        self._tensorboard_logger.log_scalars(iteration, self._scalar_logs, task)
+
+        return loss.item()
+
+    def _forward_step(self, sample, warped_sample: None):
+        # TODO: rewrite
+        outputs = self.net(sample)
+
+        if self._image_warping:
+            assert warped_sample is not None, "Forward step requires warped sample"
+            warped_outputs = self.net(warped_sample)
+            outputs.update(
+                {
+                    "warped_detector_features": warped_outputs["detector_features"],
+                    "warped_descriptor_features": warped_outputs["descriptor_features"],
+                }
+            )
+
+        return outputs
+
+    def _log_random_sample(
+        self,
+        task: str,
+        sample: dict,
+        predictions_heatmap: List[torch.Tensor],
+        iteration: int,
+    ):
+        import cv2
+
+        random_sample_index = numpy.random.randint(0, len(sample["image"]))
+        predictions = predictions_heatmap[random_sample_index].detach().cpu().numpy()
+        labels = sample["labels_2D"][random_sample_index].squeeze()
+        raw_image = sample["image"][random_sample_index].squeeze().numpy()
+        raw_image = 255 - cv2.cvtColor(raw_image, cv2.COLOR_GRAY2RGB)
+        predictions_image = raw_image.copy()
+        labels_image = raw_image.copy()
+
+        labels_coordinates = numpy.where(labels > 0.0)
+
+        self._tensorboard_logger.log_image(task, raw_image, iteration, "raw")
+        for x, y in predictions:
+            predictions_image = cv2.circle(
+                predictions_image,
+                (int(x), int(y)),
+                radius=1,
+                color=(255, 0, 0),
+                thickness=-1,
+            )
+        self._tensorboard_logger.log_image(
+            task,
+            predictions_image,
+            iteration,
+            "predictions",
+        )
+        for y, x in zip(*labels_coordinates):
+            labels_image = cv2.circle(
+                labels_image, (x, y), radius=2, color=(0, 255, 0), thickness=-1
+            )
+        self._tensorboard_logger.log_image(
+            task,
+            labels_image,
+            iteration,
+            "labels",
+        )
+        for x, y in predictions:
+            labels_image = cv2.circle(
+                labels_image,
+                (int(x), int(y)),
+                radius=1,
+                color=(255, 0, 0),
+                thickness=-1,
+            )
+        self._tensorboard_logger.log_image(
+            task,
+            labels_image,
+            iteration,
+            "predictions_labels",
+        )
+
+    @staticmethod
+    def heatmap_to_nms(heatmap):
+        """
+        return:
+            heatmap_nms_batch: np [batch, H, W]
+        """
+        return numpy.stack(
+            [Trainer.heatmap_nms(h) for h in torch_to_numpy(heatmap)], axis=0
+        )
+
+    @staticmethod
+    def heatmap_nms(heatmap, nms_dist=4, conf_thresh=0.015):
+        """
+        input:
+            heatmap: np [(1), H, W]
+        """
+        from src.ultrapoint.utils.utils import getPtsFromHeatmap
+
+        heatmap = heatmap.squeeze()
+        pts_nms = getPtsFromHeatmap(heatmap, conf_thresh, nms_dist)
+        detector_thd_nms_sample = numpy.zeros_like(heatmap)
+        detector_thd_nms_sample[
+            pts_nms[1, :].astype(int), pts_nms[0, :].astype(int)
+        ] = 1
+
+        return detector_thd_nms_sample
 
     @staticmethod
     def get_masks(mask_2D, cell_size, device="cpu"):
