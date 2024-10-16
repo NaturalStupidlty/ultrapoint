@@ -2,14 +2,14 @@ data:
     dataset: 'SyntheticDatasetGaussian'
     primitives: [
         "draw_lines",
-        "draw_polygon",
-        "draw_multiple_polygons",
-        "draw_ellipses",
-        "draw_star",
-        "draw_checkerboard",
-        "draw_stripes",
-        "draw_cube",
-        "gaussian_noise"
+#        "draw_polygon",
+#        "draw_multiple_polygons",
+#        "draw_ellipses",
+#        "draw_star",
+#        "draw_checkerboard",
+#        "draw_stripes",
+#        "draw_cube",
+#        "gaussian_noise"
     ]
     path: '../../../datasets/synthetic_shapes/'
     suffix: 'v6'
@@ -109,7 +109,7 @@ data:
                 perspective_amplitude_x: 0.2
                 perspective_amplitude_y: 0.2
                 patch_ratio: 0.8
-                max_angle: 1.57  # pi / 2
+                max_angle: 1.570796327  # pi / 2
                 allow_artifacts: true
                 translation_overflow: 0.05
             valid_border_margin: 2

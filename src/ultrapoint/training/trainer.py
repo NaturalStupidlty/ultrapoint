@@ -378,7 +378,7 @@ class Trainer:
         predictions = predictions_heatmap[random_sample_index].detach().cpu().numpy()
         labels = sample["labels_2D"][random_sample_index].squeeze()
         raw_image = sample["image"][random_sample_index].squeeze().numpy()
-        raw_image = 255 - cv2.cvtColor(raw_image, cv2.COLOR_GRAY2RGB)
+        raw_image = cv2.cvtColor(raw_image, cv2.COLOR_GRAY2RGB) * 255
         predictions_image = raw_image.copy()
         labels_image = raw_image.copy()
 

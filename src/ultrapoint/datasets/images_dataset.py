@@ -71,7 +71,7 @@ class ImagesDataset(Dataset):
         if (self._enable_photo_train is True and self._mode == "train") or (
             self._enable_photo_val and self._mode == "val"
         ):
-            img_aug = self._augmentation(img_aug)
+            img_aug = self._augmentation(img_aug, normalize=True)
 
         img_aug = torch.tensor(img_aug, dtype=torch.float32).view(-1, H, W)
 

@@ -29,14 +29,10 @@ class ImageAugmentation:
     def __call__(
         self,
         image: np.ndarray,
-        normalize: bool = False,
+        normalize: bool = True,
         grayscale: bool = False,
         **config
     ):
-        # TODO: ???
-        if image.dtype != np.uint8:
-            image = (image * 255).astype(np.uint8)
-
         if len(image.shape) == 2:
             grayscale = True
             image = image[:, :, np.newaxis]
