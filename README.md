@@ -16,29 +16,28 @@ pip install -r requirements.txt
     - [download link](http://www.cvlibs.net/download.php?file=raw_data_downloader.zip)
 
 
-### 1) Training MagicPoint on Synthetic Shapes
+### 1. Training MagicPoint on Synthetic Shapes
+```python train.py ../assets/configs/train/magicpoint_synthetic.yaml magicpoint_synth```
+
+### Tensorboard logs
+```bash
+tensorboard --logdir /home/ihor/projects/ultrapoint/assets/logs/
 ```
-python train.py ../assets/configs/train/magicpoint_synthetic.yaml magicpoint_synth --eval
-tensorboard --logdir assets/logs/magicpoint_synth_2024-09-27_10:44:24
-```
+
 You don't need to download synthetic data. You will generate it when first running it.
 
-### 2) Generating pseudo labels
+### 2. Generating pseudo labels
 This is the step of homography adaptation for joint training.
 
 #### SSIR
-```
-python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicpoint_ssir_export.yaml
-```
+```python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicpoint_ssir_export.yaml```
 
-### 3) Training SuperPoint
+### 3. Training SuperPoint
 
 #### SSIR
-```
-python train.py ../assets/configs/train/superpoint_ssir_heatmap.yaml superpoint_ssir
-```
+```python train.py ../assets/configs/train/superpoint_ssir_heatmap.yaml superpoint_ssir```
 
-### 4) Export/ Evaluate the metrics on HPatches
+### 4. Export/ Evaluate the metrics on HPatches
 - Use pretrained model or specify your model in config file
 - ```./run_export.sh``` will run export then evaluation.
 
@@ -54,32 +53,4 @@ python export.py export_descriptor  configs/magicpoint_repeatability_heatmap.yam
 - Evaluate homography estimation/ repeatability/ matching scores ...
 ```
 python evaluation.py logs/superpoint_hpatches_test/predictions --repeatibility --outputImg --homography --plotMatching
-```
-
-### 5) Export/ Evaluate repeatability on SIFT
-- Refer to another project: [Feature-preserving image denoising with multiresolution filters](https://github.com/eric-yyjau/image_denoising_matching)
-```shell
-# export detection, description, matching
-python export_classical.py export_descriptor configs/classical_descriptors.yaml sift_test --correspondence
-
-# evaluate (use 'sift' flag)
-python evaluation.py logs/sift_test/predictions --sift --repeatibility --homography 
-```
-
-- specify the pretrained model
-
-## Pretrained models
-### Current best model
-- *COCO dataset*
-```logs/superpoint_coco_heat2_0/checkpoints/superPointNet_170000_checkpoint.pth.tar```
-- *KITTI dataset*
-```logs/superpoint_kitti_heat2_0/checkpoints/superPointNet_50000_checkpoint.pth.tar```
-### model from magicleap
-```pretrained/superpoint_v1.pth```
-
-## Jupyter notebook 
-```shell
-# show images saved in the folders
-jupyter notebook
-notebooks/visualize_hpatches.ipynb 
 ```
