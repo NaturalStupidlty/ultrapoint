@@ -94,7 +94,7 @@ class Trainer:
         set_precision(config["precision"])
 
         self._load_model()
-        logger.info(f"Loaded model: {self.net.__class__.__name__}")
+        logger.info(f"Loaded model: {self.model.__class__.__name__}")
 
         self._tensorboard_logger = TensorboardLogger(save_path, config)
 
@@ -159,7 +159,7 @@ class Trainer:
             {
                 "epoch": self._epoch,
                 "n_iter": self._iteration,
-                "model_state_dict": self.net.module.state_dict(),
+                "model_state_dict": self.model.module.state_dict(),
                 "optimizer_state_dict": self._optimizer.state_dict(),
                 "loss": self._loss,
             },
@@ -203,9 +203,6 @@ class Trainer:
         """
         logger.info(f"Model: {self._config['model']['name']}")
 
-        model_params = self._config["model"]["params"]
-        model_name = self._config["model"]["name"]
-
         if self._config["pretrained"] is not None:
             checkpoint = torch.load(self._config["pretrained"])
             state_dict = checkpoint["model_state_dict"]
@@ -218,14 +215,16 @@ class Trainer:
             state_dict = None
             optimizer_state_dict = None
 
-        self.net = ModelsFactory.create(
-            model_name=model_name, config=self._config, state=state_dict, **model_params
+        self.model = ModelsFactory.create(
+            model_name=self._config["model"]["name"],
+            state=state_dict,
+            **self._config["model"],
         ).to(self._device)
         self._init_optimizer(optimizer_state_dict)
 
         # Multi-GPU support
         logger.info(f"Using {torch.cuda.device_count()} GPUs")
-        self.net = nn.DataParallel(self.net)
+        self.model = nn.DataParallel(self.model)
 
     def _init_optimizer(self, optimizer_state_dict=None):
         """
@@ -235,7 +234,7 @@ class Trainer:
             self._optimizer.load_state_dict(optimizer_state_dict)
         else:
             self._optimizer = optim.Adam(
-                self.net.parameters(),
+                self.model.parameters(),
                 lr=self._config["model"]["learning_rate"],
                 betas=(0.9, 0.999),
             )
@@ -351,11 +350,11 @@ class Trainer:
 
     def _forward_step(self, sample, warped_sample: None):
         # TODO: rewrite
-        outputs = self.net(sample)
+        outputs = self.model(sample)
 
         if self._image_warping:
             assert warped_sample is not None, "Forward step requires warped sample"
-            warped_outputs = self.net(warped_sample)
+            warped_outputs = self.model(warped_sample)
             outputs.update(
                 {
                     "warped_detector_features": warped_outputs["detector_features"],

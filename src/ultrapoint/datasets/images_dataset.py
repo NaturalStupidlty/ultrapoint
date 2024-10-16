@@ -25,7 +25,7 @@ class ImagesDataset(Dataset):
         self._transforms = transforms
         self._mode = mode
         self._samples = ImagesLoader.load_samples(
-            config[f"{mode}_images_folder"], config[f"{mode}_labels_folder"]
+            config[f"{mode}_images_folder"], config.get(f"{mode}_labels_folder", None)
         )
 
         photometric_augmentations = config["augmentation"]["photometric"]

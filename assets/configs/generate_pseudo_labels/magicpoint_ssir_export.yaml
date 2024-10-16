@@ -1,7 +1,7 @@
 data:
     dataset: 'ImagesDataset'
     val_images_folder: '../../../datasets/navigation/ss/ir/test/all'
-    val_labels_folder: null # Mandatory key
+    val_labels_folder: null
     cache_in_memory: false
     truncate: null
     num_parallel_calls: 10
@@ -43,17 +43,16 @@ data:
 
 model:
     name: 'SuperPoint'
+    pretrained: '../assets/logs/superpoint_ssir_2024-10-09_17:51:48/checkpoints/SuperPointNet_34000_checkpoint.pth.tar'
     detection_threshold: 0.005
     nms_radius: 4
     max_num_keypoints: 1024
     remove_borders: 4
     nn_thresh: 0.7
-    top_k: 1024
     batch_size: 1
     eval_batch_size: 1
     params: {}
 
-pretrained: '../assets/logs/superpoint_ssir_2024-10-09_17:51:48/checkpoints/SuperPointNet_34000_checkpoint.pth.tar'
 skip_existing: false
 save_images: true
 

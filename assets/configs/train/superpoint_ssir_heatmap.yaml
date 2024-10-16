@@ -66,7 +66,7 @@ data:
                     p: 1.0
 
     cache_in_memory: false
-    dataset: ImagesDataset
+    dataset: "ImagesDataset"
     homography_adaptation:
         enable: false
     num_parallel_calls: 10
@@ -93,8 +93,8 @@ data:
             translation: true
         valid_border_margin: 3
 logging:
-    directory: ../assets/logs
-    level: DEBUG
+    directory: "../assets/logs"
+    level: "DEBUG"
 model:
     batch_size: 8
     dense_loss:
@@ -105,14 +105,15 @@ model:
     detection_threshold: 0.015
     detector_loss:
         enable: true
-        loss_type: softmax
+        loss_type: "softmax"
     eval_batch_size: 8
     lambda_loss: 1
     learning_rate: 0.0001
     name: "SuperPoint"
+    pretrained: null
     nms_radius: 4
     remove_borders: 4
-    other_settings: train 2d, gauss 0.2
+    max_num_keypoints: null
     params: {}
     sparse_loss:
         enable: true

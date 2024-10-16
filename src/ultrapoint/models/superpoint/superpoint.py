@@ -3,10 +3,11 @@ import torch.optim
 import torch.utils.data
 
 from typing import Tuple
+from types import SimpleNamespace
 from torch.nn import BatchNorm2d
 
 from ultrapoint.utils.utils import flattenDetection
-from ultrapoint.models.superpoint.unet_parts import Down, InConv
+from ultrapoint.models.superpoint.model_blocks import Down, InConv
 from ultrapoint.utils.torch_helpers import determine_device
 
 
@@ -15,7 +16,8 @@ class SuperPoint(torch.nn.Module):
     CELL_SIZE = 8
     NUM_GRID_CELLS = CELL_SIZE * CELL_SIZE + 1
 
-    def __init__(self, config):
+    def __init__(self, **config):
+        self._config = SimpleNamespace(**config)
         super(SuperPoint, self).__init__()
         c1, c2, c3, c4, c5, d1 = self.CHANNELS
         self.inc = InConv(1, c1)
@@ -38,11 +40,11 @@ class SuperPoint(torch.nn.Module):
         self.convDb = torch.nn.Conv2d(c5, d1, kernel_size=1, stride=1, padding=0)
         self.bnDb = BatchNorm2d(d1)
 
-        self._config = config
-        self._nms_radius = config["model"]["nms_radius"]
-        self._conf_thresh = config["model"]["detection_threshold"]
-        self._detection_threshold = config["model"]["detection_threshold"]
-        self._remove_borders = config["model"]["remove_borders"]
+        self._nms_radius = self._config.nms_radius
+        self._conf_thresh = self._config.detection_threshold
+        self._detection_threshold = self._config.detection_threshold
+        self._remove_borders = self._config.remove_borders
+        self._max_num_keypoints = self._config.max_num_keypoints
         self._device = determine_device()
         self.to(self._device)
 
@@ -101,6 +103,8 @@ class SuperPoint(torch.nn.Module):
         for i in range(batch_size):
             k = keypoints_all[mask[i]]
             s = scores_all[mask[i]]
+            if self._max_num_keypoints is not None:
+                k, s = SuperPoint.select_top_k_keypoints(k, s, self._max_num_keypoints)
             d = SuperPoint.sample_descriptors(
                 k[None], output["descriptor_features"][i, None], self.CELL_SIZE
             )
@@ -119,6 +123,13 @@ class SuperPoint(torch.nn.Module):
     @staticmethod
     def normalize_descriptors(descriptors):
         return descriptors.div(torch.unsqueeze(torch.norm(descriptors, p=2, dim=1), 1))
+
+    @staticmethod
+    def select_top_k_keypoints(keypoints, scores, k):
+        if k >= len(keypoints):
+            return keypoints, scores
+        scores, indices = torch.topk(scores, k, dim=0, sorted=True)
+        return keypoints[indices], scores
 
     @staticmethod
     def sort_keypoints(

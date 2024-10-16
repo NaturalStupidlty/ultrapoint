@@ -6,110 +6,29 @@ import numpy
 from tqdm import tqdm
 from pathlib import Path
 
-from ultrapoint.models.superpoint.superpoint import SuperPoint
-from ultrapoint.models.superpoint_pretrained.superpoint_pretrained import SuperPoint
+from ultrapoint.models.models_factory import ModelsFactory
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.draw import draw_keypoints
 from ultrapoint.dataloaders import DataLoadersFactory
 from ultrapoint.loggers.loguru import create_logger, logger
-from ultrapoint.utils.torch_helpers import (
-    determine_device,
-    clear_memory,
-)
-from ultrapoint.utils.utils import inv_warp_image_batch, saveImg
-
-
-def combine_heatmap(heatmap, inv_homographies, mask_2d, device):
-    heatmap *= mask_2d
-    heatmap = inv_warp_image_batch(
-        heatmap, inv_homographies[0], device=device, mode="bilinear"
-    )
-    mask_2d = inv_warp_image_batch(
-        mask_2d, inv_homographies[0], device=device, mode="bilinear"
-    )
-    heatmap = torch.sum(heatmap, dim=0)
-    mask_2d = torch.sum(mask_2d, dim=0)
-    return heatmap / mask_2d
+from ultrapoint.utils.torch_helpers import clear_memory, determine_device
+from ultrapoint.utils.utils import saveImg
 
 
 @torch.no_grad()
 def homography_adaptation(config):
-    """
-    Input 1 image, output pseudo ground truth by homography adaptation.
-    Save labels:
-        pred:
-            'prob' (keypoints): np (N1, 3)
-    """
-    device = determine_device()
-    logger.info(f"Using device: {device}")
-
-    output_directory = os.path.join(
-        Path(config["data"]["val_images_folder"]).parent, "inference"
-    )
-    os.makedirs(output_directory, exist_ok=True)
-
-    top_k = config["model"].get("top_k", -1)
-    iterations = config["data"]["homography_adaptation"]["num"]
-    logger.info(f"Homography adaptation iterations: {iterations}")
-
-    val_loader = DataLoadersFactory.create(
-        config, dataset_name=config["data"]["dataset"], mode="val"
-    )
-    superpoint_wrapper = SuperPoint(config)
-
-    for sample in tqdm(val_loader, desc="Generating pseudo labels"):
-        try:
-            filename = str(sample["name"][0])
-            if config["skip_existing"] and os.path.exists(
-                os.path.join(output_directory, f"{filename}.npz")
-            ):
-                logger.info(f"File {filename} exists. Skipping.")
-                continue
-
-            heatmap = superpoint_wrapper(sample["image"].transpose(0, 1))
-            outputs = combine_heatmap(
-                heatmap,
-                sample["homographies"].to(device),
-                sample["mask"].transpose(0, 1).to(device),
-                device,
-            )
-            points = superpoint_wrapper.heatmap_to_keypoints(
-                outputs.detach().cpu().squeeze()
-            )
-
-            numpy.savez_compressed(
-                os.path.join(output_directory, f"{filename}.npz"),
-                pts=points.transpose()[:top_k, :],
-            )
-
-            if not config["save_images"]:
-                continue
-
-            img_pts = draw_keypoints(sample["image_2D"].numpy().squeeze() * 255, points)
-            saveImg(img_pts, os.path.join(output_directory, f"{filename}.png"))
-        except KeyboardInterrupt:
-            clear_memory()
-
-    logger.info(f"Processed {len(val_loader)} samples.")
-
-
-@torch.no_grad()
-def homography_adaptation_pretrained(config):
     """
     Input 1 image, output pseudo ground truth by homography adaptation with pretrained superpoint.
     Save labels:
         pred:
             'prob' (keypoints): np (N1, 3)
     """
-    device = determine_device()
-    logger.info(f"Using device: {device}")
-
     output_directory = os.path.join(
         Path(config["data"]["val_images_folder"]).parent, "pseudo_labels"
     )
     os.makedirs(output_directory, exist_ok=True)
 
-    top_k = config["model"].get("top_k", -1)
+    device = determine_device()
     iterations = config["data"]["homography_adaptation"]["num"]
     logger.info(f"Homography adaptation iterations: {iterations}")
 
@@ -117,8 +36,17 @@ def homography_adaptation_pretrained(config):
         config, dataset_name=config["data"]["dataset"], mode="val"
     )
 
-    superpoint = SuperPoint(**config["model"]).to(device)
-    superpoint.load_state_dict(torch.load(config["pretrained"], weights_only=False))
+    state_dict = torch.load(config["model"]["pretrained"], map_location=device)
+    state_dict = (
+        state_dict["model_state_dict"]
+        if "model_state_dict" in state_dict
+        else state_dict
+    )
+    superpoint = ModelsFactory.create(
+        model_name=config["model"]["name"],
+        state=state_dict,
+        **config["model"],
+    ).to(device)
 
     for sample in tqdm(val_loader, desc="Generating pseudo labels"):
         try:
@@ -129,35 +57,22 @@ def homography_adaptation_pretrained(config):
                 logger.info(f"File {filename} exists. Skipping.")
                 continue
 
-            sample["image"] = sample["image"].transpose(0, 1).to(device)
-            outputs = superpoint(sample)
-            points = (
-                torch.cat(
-                    (
-                        outputs["keypoints"][0],
-                        outputs["keypoint_scores"][0].unsqueeze(1),
-                    ),
-                    dim=1,
-                )
-                .cpu()
-                .numpy()
-            )
-
-            points = points[points[:, 2] > 0.2]
+            output = superpoint(torch.Tensor(sample["image"]).transpose(0, 1))
+            keypoints = output["keypoints"][0].detach().cpu().numpy()
+            scores = output["keypoint_scores"][0].detach().cpu().numpy()
 
             numpy.savez_compressed(
                 os.path.join(output_directory, f"{filename}.npz"),
-                pts=points[:top_k, :],
+                pts=keypoints,
             )
 
             if not config["save_images"]:
                 continue
 
-            img_pts = draw_keypoints(
-                sample["image_2D"].numpy().squeeze() * 255,
-                points.transpose(),
+            points = draw_keypoints(
+                sample["image"].squeeze()[0].numpy() * 255, keypoints, scores
             )
-            saveImg(img_pts, os.path.join(output_directory, f"{filename}.png"))
+            saveImg(points, os.path.join(output_directory, f"{filename}.png"))
         except KeyboardInterrupt:
             clear_memory()
 
@@ -175,7 +90,7 @@ def main():
     args = parse_arguments()
     config = load_config(args.config)
     create_logger(**config["logging"])
-    homography_adaptation_pretrained(config)
+    homography_adaptation(config)
 
 
 if __name__ == "__main__":

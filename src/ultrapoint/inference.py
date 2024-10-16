@@ -31,11 +31,16 @@ def inference(config, images_folder: str, output_directory: str):
     iterations = config["data"]["homography_adaptation"]["num"]
     logger.info(f"Homography adaptation iterations: {iterations}")
 
-    state_dict = torch.load(config["pretrained"], map_location=device)[
-        "model_state_dict"
-    ]
+    state_dict = torch.load(config["model"]["pretrained"], map_location=device)
+    state_dict = (
+        state_dict["model_state_dict"]
+        if "model_state_dict" in state_dict
+        else state_dict
+    )
     superpoint = ModelsFactory.create(
-        model_name="SuperPoint", config=config, state=state_dict
+        model_name=config["model"]["name"],
+        state=state_dict,
+        **config["model"],
     ).to(device)
 
     for filename in tqdm(Path(images_folder).iterdir(), desc="Processing images"):
@@ -56,10 +61,10 @@ def inference(config, images_folder: str, output_directory: str):
             keypoints = output["keypoints"][0].detach().cpu().numpy()
             scores = output["keypoint_scores"][0].detach().cpu().numpy()
 
-            img_pts = draw_keypoints(
+            image = draw_keypoints(
                 sample["image"].squeeze().numpy() * 255, keypoints, scores
             )
-            saveImg(img_pts, os.path.join(output_directory, f"{filename.name}.png"))
+            saveImg(image, os.path.join(output_directory, f"{filename.name}.png"))
 
         except KeyboardInterrupt:
             clear_memory()
