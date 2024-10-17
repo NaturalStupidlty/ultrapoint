@@ -1,44 +1,6 @@
 data:
-    dataset: 'ImagesDataset'
-    val_images_folder: '../../../datasets/navigation/ss/ir/train/all'
-    val_labels_folder: null
-    cache_in_memory: false
-    truncate: null
-    num_parallel_calls: 10
-    validation_size: 1
     preprocessing:
         resize: [240, 320]
-    gaussian_label:
-        enable: false
-    augmentation:
-        photometric:
-            enable_train: false
-            enable_val: false
-        homographic:
-            enable_train: false
-            enable_val: false
-    homography_adaptation:
-        enable: true
-        num: 100
-        aggregation: 'sum'
-        filter_counts: 0
-        homographies:
-            params:
-                translation: true
-                rotation: true
-                scaling: true
-                perspective: true
-                scaling_amplitude: 0.2
-                perspective_amplitude_x: 0.2
-                perspective_amplitude_y: 0.2
-                allow_artifacts: true
-                patch_ratio: 0.85
-    warped_pair:
-        enable: false
-        valid_border_margin: 0
-    
-    train_workers: 16
-    val_workers: 16
 
 model:
     name: 'SuperPoint'
