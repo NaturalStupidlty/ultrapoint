@@ -3,19 +3,16 @@ data:
         resize: [240, 320]
 
 model:
-    name: 'SuperPoint'
-    pretrained: '../assets/logs/superpoint_ssir_2024-10-09_17:51:48/checkpoints/SuperPointNet_200000_checkpoint.pth.tar'
+    name: 'SuperPointPretrained'
+    pretrained: '../assets/pretrained/superpoint_v6_from_tf.pth'
     detection_threshold: 0.005
     nms_radius: 4
     max_num_keypoints: 1024
     remove_borders: 4
-    nn_thresh: 0.7  # L2 descriptor distance for good match.
     top_k: 1024
     batch_size: 1
     eval_batch_size: 1
-    params: {}
 
-skip_existing: false
 save_images: true
 
 seed: 0
