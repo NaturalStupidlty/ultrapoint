@@ -17,7 +17,6 @@ data:
         homographic:
             enable_train: false
             enable_val: false
-            valid_border_margin: 0
     homography_adaptation:
         enable: true
         num: 100
@@ -48,11 +47,9 @@ model:
     nms_radius: 4
     max_num_keypoints: 1024
     remove_borders: 4
-    nn_thresh: 0.7  # L2 descriptor distance for good match.
     top_k: 1024
     batch_size: 1
     eval_batch_size: 1
-    params: {}
 
 skip_existing: false
 save_images: true

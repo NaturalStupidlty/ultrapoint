@@ -30,12 +30,12 @@ You don't need to download synthetic data. You will generate it when first runni
 This is the step of homography adaptation for joint training.
 
 #### SSIR
-```python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicpoint_ssir_export.yaml```
+```python generate_pseudo_labels.py ../assets/configs/generate_pseudo_labels/magicpoint_ssir.yaml```
 
 ### 3. Training SuperPoint
 
 #### SSIR
-```python train.py ../assets/configs/train/superpoint_ssir_heatmap.yaml superpoint_ssir```
+```python train.py ../assets/configs/train/superpoint_ssir.yaml superpoint_ssir```
 
 ### 4. Export/ Evaluate the metrics on HPatches
 - Use pretrained model or specify your model in config file
