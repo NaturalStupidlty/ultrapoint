@@ -64,10 +64,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         primitives = self.setup_primitives(config["primitives"])
         logger.info(primitives)
 
-        basepath = Path(
-            self._data_path,
-            "synthetic_shapes"
-        )
+        basepath = Path(self._data_path, "synthetic_shapes")
         basepath.mkdir(parents=True, exist_ok=True)
 
         splits = {s: {"images": [], "points": []} for s in [self.action]}
