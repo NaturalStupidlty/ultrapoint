@@ -1,0 +1,20 @@
+data:
+    preprocessing:
+        resize: [240, 320]
+
+model:
+    name: 'SuperPointPretrained'
+    pretrained: '../assets/pretrained/superpoint_v6_from_tf.pth'
+    detection_threshold: 0.005
+    nms_radius: 4
+    max_num_keypoints: 1024
+    remove_borders: 4
+    top_k: 1024
+    batch_size: 1
+    eval_batch_size: 1
+
+seed: 0
+precision: medium
+logging:
+  level: DEBUG
+  directory: ../assets/logs/generate_pseudo_labels

@@ -21,3 +21,4 @@ torchgeometry
 torchsummary
 loguru
 black
+fvcore
