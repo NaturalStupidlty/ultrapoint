@@ -204,7 +204,7 @@ class Trainer:
         logger.info(f"Model: {self._config['model']['name']}")
 
         if self._config["pretrained"] is not None:
-            checkpoint = torch.load(self._config["pretrained"])
+            checkpoint = torch.load(self._config["pretrained"], weights_only=False)
             state_dict = checkpoint["model_state_dict"]
             self.epoch = checkpoint.get("epoch", 0)
             self._iteration = checkpoint.get("n_iter", 0)
@@ -218,8 +218,9 @@ class Trainer:
         self.model = SuperPointModelsFactory.create(
             model_name=self._config["model"]["name"],
             state=state_dict,
+            device=self._device,
             **self._config["model"],
-        ).to(self._device)
+        )
         self._init_optimizer(optimizer_state_dict)
 
         # Multi-GPU support

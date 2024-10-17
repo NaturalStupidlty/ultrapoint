@@ -26,16 +26,14 @@ def inference(config, images_folder: str, output_directory: str):
     make_deterministic(config["seed"])
     set_precision(config["precision"])
     device = determine_device()
-
     os.makedirs(output_directory, exist_ok=True)
-    iterations = config["data"]["homography_adaptation"]["num"]
-    logger.info(f"Homography adaptation iterations: {iterations}")
 
     superpoint = SuperPointModelsFactory.create(
         model_name=config["model"]["name"],
         weights_path=config["model"]["pretrained"],
+        device=device,
         **config["model"],
-    ).to(device)
+    )
 
     for filename in tqdm(Path(images_folder).iterdir(), desc="Processing images"):
         try:
@@ -50,7 +48,7 @@ def inference(config, images_folder: str, output_directory: str):
             }
 
             output = superpoint(
-                torch.Tensor(sample["image"]).unsqueeze(0).transpose(0, 1)
+                torch.Tensor(sample["image"]).unsqueeze(0).transpose(0, 1).to(device)
             )
             keypoints = output["keypoints"][0].detach().cpu().numpy()
             scores = output["keypoint_scores"][0].detach().cpu().numpy()

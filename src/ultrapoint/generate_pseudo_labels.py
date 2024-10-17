@@ -27,10 +27,7 @@ def homography_adaptation(config):
         Path(config["data"]["val_images_folder"]).parent, "pseudo_labels"
     )
     os.makedirs(output_directory, exist_ok=True)
-
     device = determine_device()
-    iterations = config["data"]["homography_adaptation"]["num"]
-    logger.info(f"Homography adaptation iterations: {iterations}")
 
     val_loader = DataLoadersFactory.create(
         config, dataset_name=config["data"]["dataset"], mode="val"
@@ -39,8 +36,9 @@ def homography_adaptation(config):
     superpoint = SuperPointModelsFactory.create(
         model_name=config["model"]["name"],
         weights_path=config["model"]["pretrained"],
+        device=device,
         **config["model"],
-    ).to(device)
+    )
 
     for sample in tqdm(val_loader, desc="Generating pseudo labels"):
         try:
@@ -51,7 +49,9 @@ def homography_adaptation(config):
                 logger.info(f"File {filename} exists. Skipping.")
                 continue
 
-            output = superpoint(torch.Tensor(sample["image"]).transpose(0, 1))
+            output = superpoint(
+                torch.Tensor(sample["image"]).transpose(0, 1).to(device)
+            )
             keypoints = output["keypoints"][0].detach().cpu().numpy()
             scores = output["keypoint_scores"][0].detach().cpu().numpy()
 
@@ -64,7 +64,7 @@ def homography_adaptation(config):
                 continue
 
             points = draw_keypoints(
-                sample["image"].squeeze()[0].numpy() * 255, keypoints, scores
+                sample["image"].squeeze().numpy() * 255, keypoints, scores
             )
             saveImg(points, os.path.join(output_directory, f"{filename}.png"))
         except KeyboardInterrupt:

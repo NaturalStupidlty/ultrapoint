@@ -1,7 +1,7 @@
-import torch
-
 from abc import ABC, abstractmethod
+from typing import Union
 
+import torch
 from loguru import logger
 
 from ultrapoint.models.superpoint import SuperPoint
@@ -19,8 +19,8 @@ class ModelsFactory(ABC):
         pass
 
     @staticmethod
-    def load_weights(weights_path: str, device: str = "cpu") -> dict:
-        state = torch.load(weights_path, map_location=device)
+    def load_weights(weights_path: str, device: Union[str, torch.device]) -> dict:
+        state = torch.load(weights_path, map_location=device, weights_only=False)
         state = state["model_state_dict"] if "model_state_dict" in state else state
         return state
 
@@ -33,14 +33,18 @@ class SuperPointModelsFactory(ModelsFactory):
 
     @staticmethod
     def create(
-        model_name: str, weights_path: str = None, state: dict = None, **model_kwargs
+        model_name: str,
+        weights_path: str = None,
+        state: dict = None,
+        device: Union[str, torch.device] = "cpu",
+        **model_kwargs,
     ) -> torch.nn.Module:
         assert (
             model_name in SuperPointModelsFactory.SUPPORTED_MODELS
         ), f"Model {model_name} is not supported"
 
         if weights_path is not None:
-            state = ModelsFactory.load_weights(weights_path)
+            state = ModelsFactory.load_weights(weights_path, device)
 
         model = SuperPointModelsFactory.SUPPORTED_MODELS[model_name](**model_kwargs)
 
@@ -50,5 +54,7 @@ class SuperPointModelsFactory(ModelsFactory):
             except Exception as e:
                 logger.error(f"Failed to load model state: {e}")
                 raise
+
+        model.to(device)
 
         return model

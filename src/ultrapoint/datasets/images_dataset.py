@@ -37,10 +37,7 @@ class ImagesDataset(Dataset):
         self._enable_homo_train = homographic_augmentations["enable_train"]
         self._enable_homo_val = homographic_augmentations["enable_val"]
         self._enable_photo_val = photometric_augmentations["enable_val"]
-
-        self._cell_size = 8
         self._resize = config.get("preprocessing", {}).get("resize", None)
-
         self._augmentation = ImageAugmentation(**self._config["augmentation"])
 
     def __len__(self):
