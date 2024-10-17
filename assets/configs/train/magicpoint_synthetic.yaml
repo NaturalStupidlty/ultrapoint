@@ -2,17 +2,16 @@ data:
     dataset: 'SyntheticDatasetGaussian'
     primitives: [
         "draw_lines",
-#        "draw_polygon",
-#        "draw_multiple_polygons",
-#        "draw_ellipses",
-#        "draw_star",
-#        "draw_checkerboard",
-#        "draw_stripes",
-#        "draw_cube",
-#        "gaussian_noise"
+        "draw_polygon",
+        "draw_multiple_polygons",
+        "draw_ellipses",
+        "draw_star",
+        "draw_checkerboard",
+        "draw_stripes",
+        "draw_cube",
+        "gaussian_noise"
     ]
     path: '../../../datasets/synthetic_shapes/'
-    suffix: 'v6'
     truncate: {}
     preprocessing:
         blur_size: 21

@@ -67,7 +67,6 @@ class SyntheticDatasetGaussian(data.Dataset):
         basepath = Path(
             self._data_path,
             "synthetic_shapes"
-            + ("_{}".format(config["suffix"]) if config["suffix"] is not None else ""),
         )
         basepath.mkdir(parents=True, exist_ok=True)
 
