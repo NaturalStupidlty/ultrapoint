@@ -81,28 +81,24 @@ class SuperPoint(torch.nn.Module):
     def forward(self, image: torch.Tensor):
         output = self.forward_features(image)
 
-        heatmap = flattenDetection(output["detector_features"])
-        scores = heatmap[:, 0]
-        batch_size, height, width = scores.shape
-        if scores.max() < self._conf_thresh:
-            return torch.zeros((batch_size, 2, 0)), torch.zeros((batch_size, 0))
+        heatmap = flattenDetection(output["detector_features"])[:, 0]
+        batch_size = heatmap.shape[0]
+        heatmap = SuperPoint.batched_nms(heatmap, self._nms_radius)
+        heatmap = SuperPoint.remove_borders(heatmap, self._remove_borders)
 
-        scores = SuperPoint.batched_nms(scores, self._nms_radius)
-        scores = SuperPoint.remove_borders(scores, self._remove_borders)
-
-        idxs = torch.where(scores > self._conf_thresh)
-        mask = idxs[0] == torch.arange(batch_size, device=scores.device)[:, None]
+        idxs = torch.where(heatmap > self._conf_thresh)
+        mask = idxs[0] == torch.arange(batch_size, device=heatmap.device)[:, None]
 
         # Convert (i, j) to (x, y)
         keypoints_all = torch.stack(idxs[-2:], dim=-1).flip(1).float()
-        scores_all = scores[idxs]
+        heatmap = heatmap[idxs]
 
         keypoints = []
         scores = []
         descriptors = []
         for i in range(batch_size):
             k = keypoints_all[mask[i]]
-            s = scores_all[mask[i]]
+            s = heatmap[mask[i]]
             if self._max_num_keypoints is not None:
                 k, s = SuperPoint.select_top_k_keypoints(k, s, self._max_num_keypoints)
             d = SuperPoint.sample_descriptors(
