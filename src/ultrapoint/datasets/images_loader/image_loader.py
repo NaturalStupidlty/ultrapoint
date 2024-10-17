@@ -7,6 +7,8 @@ class ImagesLoader:
 
     @staticmethod
     def load_samples(images_path: str, labels_path: str = None):
+        logger.info(f"Loading samples from: {images_path}")
+
         try:
             # Ensure the path exists
             base_path = Path(images_path)
@@ -30,6 +32,7 @@ class ImagesLoader:
 
             # Load labels if they are specified in the configuration
             if labels_path:
+                logger.info(f"Loading labels from: {labels_path}")
                 labels_path = Path(labels_path)
                 if not labels_path.exists() or not labels_path.is_dir():
                     raise FileNotFoundError(
