@@ -6,7 +6,7 @@ import numpy
 from tqdm import tqdm
 from pathlib import Path
 
-from ultrapoint.models.models_factory import ModelsFactory
+from ultrapoint.models.factories import SuperPointModelsFactory
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.draw import draw_keypoints
 from ultrapoint.dataloaders import DataLoadersFactory
@@ -36,15 +36,9 @@ def homography_adaptation(config):
         config, dataset_name=config["data"]["dataset"], mode="val"
     )
 
-    state_dict = torch.load(config["model"]["pretrained"], map_location=device)
-    state_dict = (
-        state_dict["model_state_dict"]
-        if "model_state_dict" in state_dict
-        else state_dict
-    )
-    superpoint = ModelsFactory.create(
+    superpoint = SuperPointModelsFactory.create(
         model_name=config["model"]["name"],
-        state=state_dict,
+        weights_path=config["model"]["pretrained"],
         **config["model"],
     ).to(device)
 

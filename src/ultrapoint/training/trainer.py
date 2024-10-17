@@ -13,7 +13,7 @@ from loguru import logger
 
 from ultrapoint.utils.utils import calculate_precision_recall
 from ultrapoint.loggers.tensorboard import TensorboardLogger
-from ultrapoint.models.models_factory import ModelsFactory
+from ultrapoint.models.factories import SuperPointModelsFactory
 from ultrapoint.utils.utils import labels2Dto3D
 from ultrapoint.utils.torch_helpers import (
     determine_device,
@@ -215,7 +215,7 @@ class Trainer:
             state_dict = None
             optimizer_state_dict = None
 
-        self.model = ModelsFactory.create(
+        self.model = SuperPointModelsFactory.create(
             model_name=self._config["model"]["name"],
             state=state_dict,
             **self._config["model"],

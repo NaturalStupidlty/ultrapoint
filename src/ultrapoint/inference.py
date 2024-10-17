@@ -6,7 +6,7 @@ from tqdm import tqdm
 from pathlib import Path
 from loguru import logger
 
-from ultrapoint.models.models_factory import ModelsFactory
+from ultrapoint.models.factories import SuperPointModelsFactory
 from ultrapoint.loggers.loguru import create_logger
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.torch_helpers import (
@@ -31,15 +31,9 @@ def inference(config, images_folder: str, output_directory: str):
     iterations = config["data"]["homography_adaptation"]["num"]
     logger.info(f"Homography adaptation iterations: {iterations}")
 
-    state_dict = torch.load(config["model"]["pretrained"], map_location=device)
-    state_dict = (
-        state_dict["model_state_dict"]
-        if "model_state_dict" in state_dict
-        else state_dict
-    )
-    superpoint = ModelsFactory.create(
+    superpoint = SuperPointModelsFactory.create(
         model_name=config["model"]["name"],
-        state=state_dict,
+        weights_path=config["model"]["pretrained"],
         **config["model"],
     ).to(device)
 
