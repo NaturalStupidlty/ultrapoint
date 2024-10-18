@@ -17,4 +17,4 @@ seed: 0
 precision: medium
 logging:
   level: DEBUG
-  directory: ../assets/logs/generate_pseudo_labels
+  directory: ../assets/logs/benchmarks
