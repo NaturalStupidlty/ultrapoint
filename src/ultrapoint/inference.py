@@ -17,7 +17,6 @@ from ultrapoint.utils.torch_helpers import (
 from ultrapoint.utils.utils import saveImg
 from ultrapoint.utils.image_helpers import read_image
 from ultrapoint.utils.draw import draw_keypoints
-from ultrapoint.utils.utils import compute_mask
 from ultrapoint.utils.torch_helpers import determine_device
 
 
@@ -37,24 +36,22 @@ def inference(config, images_folder: str, output_directory: str):
 
     for filename in tqdm(Path(images_folder).iterdir(), desc="Processing images"):
         try:
-            sample = {
-                "image": torch.Tensor(
+            image = (
+                torch.Tensor(
                     read_image(str(filename), config["data"]["preprocessing"]["resize"])
-                ).unsqueeze(0),
-                "mask": compute_mask(
-                    torch.tensor(config["data"]["preprocessing"]["resize"]),
-                    inv_homography=torch.eye(3),
-                ),
-            }
-
-            output = superpoint(
-                torch.Tensor(sample["image"]).unsqueeze(0).transpose(0, 1).to(device)
+                )
+                .unsqueeze(0)
+                .unsqueeze(0)
+                .transpose(0, 1)
+                .to(device)
             )
+
+            output = superpoint(image)
             keypoints = output["keypoints"][0].detach().cpu().numpy()
             scores = output["keypoint_scores"][0].detach().cpu().numpy()
 
             image = draw_keypoints(
-                sample["image"].squeeze().numpy() * 255, keypoints, scores
+                image.squeeze().cpu().numpy() * 255, keypoints, scores
             )
             saveImg(image, os.path.join(output_directory, f"{filename.name}.png"))
 
