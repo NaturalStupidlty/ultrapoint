@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 
 from ultrapoint.evaluations.descriptor_evaluation import compute_homography
 from ultrapoint.evaluations.detector_evaluation import compute_repeatability
-from ultrapoint.utils.draw import plot_imgs
+from ultrapoint.utils.draw import plot_imgs, draw_keypoints
 
 
 def draw_matches_cv(data, matches, plot_points=True):
@@ -67,7 +67,7 @@ def find_files_with_ext(directory, extension=".npz", if_int=True):
         for l in os.listdir(directory):
             if l.endswith(extension):
                 list_of_files.append(l)
-                # print(l)
+
     if if_int:
         list_of_files = [e for e in list_of_files if isfloat(e[:-4])]
     return list_of_files
@@ -79,68 +79,51 @@ def to3dim(img):
     return img
 
 
-def evaluate(args):
-    path = args.path
-    files = find_files_with_ext(path)
+def evaluate(
+    descriptors_path: str,
+    repeatability_threshold: int = 3,
+    inliers_method: str = "cv",
+    compute_map: bool = True,
+    verbose: bool = True,
+):
     correctness = []
     repeatability = []
     mscore = []
     mAP = []
     localization_err = []
-    rep_thd = 3
-    save_file = path + "/result.txt"
-    inliers_method = "cv"
-    compute_map = True
-    verbose = True
-    top_K = 1000
-    print("top_K: ", top_K)
 
-    reproduce = True
-    if reproduce:
-        logger.info("reproduce = True")
-        np.random.seed(0)
-        print(f"test random # : np({np.random.rand(1)})")
+    save_file = descriptors_path + "/result.txt"
 
-    # create output dir
     if args.outputImg:
-        path_warp = path + "/warping"
+        path_warp = descriptors_path + "/warping"
         os.makedirs(path_warp, exist_ok=True)
-        path_match = path + "/matching"
+        path_match = descriptors_path + "/matching"
         os.makedirs(path_match, exist_ok=True)
-        path_rep = path + "/repeatibility" + str(rep_thd)
+        path_rep = descriptors_path + "/repeatibility" + str(repeatability_threshold)
         os.makedirs(path_rep, exist_ok=True)
 
-    # for i in range(2):
-    #     f = files[i]
-    print(f"file: {files[0]}")
+    files = find_files_with_ext(descriptors_path)
     files.sort(key=lambda x: int(x[:-4]))
-    from src.ultrapoint.utils.draw import draw_keypoints
 
     for f in tqdm(files):
         f_num = f[:-4]
-        data = np.load(path + "/" + f)
+        data = np.load(descriptors_path + "/" + f)
         print("load successfully. ", f)
 
-        # unwarp
-        # prob = data['prob']
-        # warped_prob = data['prob']
-        # descriptor = data['descriptor']
-        # warped_descriptor = data['warped_descriptor']
-        # homography = data['homography']
         real_H = data["homography"]
         image = data["image"]
         warped_image = data["warped_image"]
         keypoints = data["prob"][:, [1, 0]]
-        print("keypoints: ", keypoints[:3, :])
         warped_keypoints = data["warped_prob"][:, [1, 0]]
-        print("warped_keypoints: ", warped_keypoints[:3, :])
-        # print("Unwrap successfully.")
 
         if args.repeatibility:
             rep, local_err = compute_repeatability(
-                data, keep_k_points=top_K, distance_thresh=rep_thd, verbose=False
+                data,
+                distance_thresh=repeatability_threshold,
+                verbose=False,
             )
             repeatability.append(rep)
+
             print("repeatability: %.2f" % (rep))
             if local_err > 0:
                 localization_err.append(local_err)
@@ -169,7 +152,6 @@ def evaluate(args):
                 plt.savefig(
                     path_rep + "/" + f_num + ".png", dpi=300, bbox_inches="tight"
                 )
-                pass
 
         if args.homography:
             # estimate result
@@ -464,10 +446,12 @@ def evaluate(args):
 
     # save to files
     with open(save_file, "a") as myfile:
-        myfile.write("path: " + path + "\n")
+        myfile.write("path: " + descriptors_path + "\n")
         myfile.write("output Images: " + str(args.outputImg) + "\n")
         if args.repeatibility:
-            myfile.write("repeatability threshold: " + str(rep_thd) + "\n")
+            myfile.write(
+                "repeatability threshold: " + str(repeatability_threshold) + "\n"
+            )
             myfile.write("repeatability: " + str(repeatability_ave) + "\n")
             myfile.write("localization error: " + str(localization_err_m) + "\n")
         if args.homography:
@@ -523,4 +507,4 @@ if __name__ == "__main__":
     parser.add_argument("-homo", "--homography", action="store_true")
     parser.add_argument("-plm", "--plotMatching", action="store_true")
     args = parser.parse_args()
-    evaluate(args)
+    evaluate(args.path)

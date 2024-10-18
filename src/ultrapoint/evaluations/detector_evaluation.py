@@ -150,7 +150,7 @@ def warp_keypoints(keypoints, H):
     return warped_points[:, :2] / warped_points[:, 2:]
 
 
-def compute_repeatability(data, keep_k_points=300, distance_thresh=3, verbose=False):
+def compute_repeatability(data, distance_thresh=3, verbose=False):
     """
     Compute the repeatability. The experiment must contain in its output the prediction
     on 2 images, an original image and a warped version of it, plus the homography
@@ -240,10 +240,6 @@ def compute_repeatability(data, keep_k_points=300, distance_thresh=3, verbose=Fa
     #                                   true_warped_keypoints[:, 0],
     #                                   prob], axis=-1)
     true_warped_keypoints = filter_keypoints(true_warped_keypoints, shape)
-
-    # Keep only the keep_k_points best predictions
-    warped_keypoints = select_k_best(warped_keypoints, keep_k_points)
-    true_warped_keypoints = select_k_best(true_warped_keypoints, keep_k_points)
 
     # Compute the repeatability
     N1 = true_warped_keypoints.shape[0]

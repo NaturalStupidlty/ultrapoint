@@ -10,7 +10,7 @@ from ultrapoint.loggers.loguru import create_logger, logger
 from ultrapoint.datasets.dataloaders import DataLoadersFactory
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.evaluations.point_tracker import PointTracker
-from ultrapoint.utils.torch_helpers import determine_device
+from ultrapoint.utils.torch_helpers import determine_device, squeeze_to_numpy
 
 
 @torch.no_grad()
@@ -47,13 +47,13 @@ def export_descriptors(config, output_directory):
         tracker.clear_desc()
 
         predictions = {
-            "image": sample["image"],
+            "image": squeeze_to_numpy(sample["image"]),
             "prob": points0,
             "desc": descriptors0,
             "warped_image": sample["warped_image"],
             "warped_prob": points1,
             "warped_desc": descriptors1,
-            "homography": sample["homography"],
+            "homography": squeeze_to_numpy(sample["homography"]),
             "matches": matches,
         }
 
