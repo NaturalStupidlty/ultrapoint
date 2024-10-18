@@ -1,24 +1,17 @@
-"""Script for evaluation
-This is the evaluation script for image denoising project.
-
-Author: You-Yi Jau, Yiqian Wang
-Date: 2020/03/30
-"""
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+from tqdm import tqdm
+from loguru import logger
 
 import matplotlib
 
 matplotlib.use("Agg")
 
-import numpy as np
-from src.ultrapoint.evaluations.descriptor_evaluation import compute_homography
-from src.ultrapoint.evaluations.detector_evaluation import compute_repeatability
-import cv2
-import matplotlib.pyplot as plt
-
-import os
-from tqdm import tqdm
-from loguru import logger
-from src.ultrapoint.utils.draw import plot_imgs
+from ultrapoint.evaluations.descriptor_evaluation import compute_homography
+from ultrapoint.evaluations.detector_evaluation import compute_repeatability
+from ultrapoint.utils.draw import plot_imgs
 
 
 def draw_matches_cv(data, matches, plot_points=True):
@@ -43,8 +36,8 @@ def draw_matches_cv(data, matches, plot_points=True):
 
     img1 = to3dim(data["image1"])
     img2 = to3dim(data["image2"])
-    img1 = np.concatenate([img1, img1, img1], axis=2)
-    img2 = np.concatenate([img2, img2, img2], axis=2)
+    img1 = np.concatenate([img1, img1, img1], axis=2).astype(np.uint8)
+    img2 = np.concatenate([img2, img2, img2], axis=2).astype(np.uint8)
     return cv2.drawMatches(
         img1,
         keypoints1,
@@ -86,12 +79,10 @@ def to3dim(img):
     return img
 
 
-def evaluate(args, **options):
-    # path = '/home/yoyee/Documents/SuperPoint/superpoint/logs/outputs/superpoint_coco/'
+def evaluate(args):
     path = args.path
     files = find_files_with_ext(path)
     correctness = []
-    est_H_mean_dist = []
     repeatability = []
     mscore = []
     mAP = []
@@ -155,15 +146,17 @@ def evaluate(args, **options):
                 localization_err.append(local_err)
                 print("local_err: ", local_err)
             if args.outputImg:
-                # img = to3dim(image)
-                img = image
                 pts = data["prob"]
-                img1 = draw_keypoints(img * 255, pts.transpose())
+                img1 = draw_keypoints(
+                    image.squeeze(),
+                    pts,
+                    np.ones(pts.shape[0]),
+                )
 
-                # img = to3dim(warped_image)
-                img = warped_image
                 pts = data["warped_prob"]
-                img2 = draw_keypoints(img * 255, pts.transpose())
+                img2 = draw_keypoints(
+                    warped_image.squeeze(), pts, np.ones(pts.shape[0])
+                )
 
                 plot_imgs(
                     [img1.astype(np.uint8), img2.astype(np.uint8)],
@@ -213,7 +206,7 @@ def evaluate(args, **options):
 
             from numpy.linalg import inv
 
-            H, W = image.shape
+            H, W, _, _ = image.shape
             unwarped_pnts = warpLabels(warped_keypoints, inv(real_H), H, W)
             score = (result["inliers"].sum() * 2) / (
                 keypoints.shape[0] + unwarped_pnts.shape[0]
@@ -346,8 +339,8 @@ def evaluate(args, **options):
                 output = result
                 # img1 = image/255
                 # img2 = warped_image/255
-                img1 = image
-                img2 = warped_image
+                img1 = image.squeeze()
+                img2 = warped_image.squeeze()
 
                 img1 = to3dim(img1)
                 img2 = to3dim(img2)
@@ -369,7 +362,7 @@ def evaluate(args, **options):
                 plt.savefig(path_warp + "/" + f_num + ".png")
 
                 ## plot filtered image
-                img1, img2 = data["image"], data["warped_image"]
+                img1, img2 = data["image"].squeeze(), data["warped_image"].squeeze()
                 warped_img1 = cv2.warpPerspective(
                     img1, H, (img2.shape[1], img2.shape[0])
                 )
@@ -385,8 +378,8 @@ def evaluate(args, **options):
                 # plt.show()
 
                 # draw matches
-                result["image1"] = image
-                result["image2"] = warped_image
+                result["image1"] = image.squeeze()
+                result["image2"] = warped_image.squeeze()
                 matches = np.array(result["cv2_matches"])
                 ratio = 0.2
                 ran_idx = np.random.choice(
@@ -419,8 +412,8 @@ def evaluate(args, **options):
                     )
                     return matches[ran_idx], ran_idx
 
-                image = data["image"]
-                warped_image = data["warped_image"]
+                image = data["image"].squeeze()
+                warped_image = data["warped_image"].squeeze()
                 ## outliers
                 matches_temp, _ = get_random_m(matches_out, ratio)
                 # print(f"matches_in: {matches_in.shape}, matches_temp: {matches_temp.shape}")
@@ -458,10 +451,9 @@ def evaluate(args, **options):
         )
     if args.homography:
         correctness_ave = np.array(correctness).mean(axis=0)
-        # est_H_mean_dist = np.array(est_H_mean_dist)
         print("homography estimation threshold", homography_thresh)
         print("correctness_ave", correctness_ave)
-        # print(f"mean est H dist: {est_H_mean_dist.mean()}")
+
         mscore_m = np.array(mscore).mean(axis=0)
         print("matching score", mscore_m)
         if compute_map:
@@ -482,8 +474,6 @@ def evaluate(args, **options):
             myfile.write("Homography estimation: " + "\n")
             myfile.write("Homography threshold: " + str(homography_thresh) + "\n")
             myfile.write("Average correctness: " + str(correctness_ave) + "\n")
-
-            # myfile.write("mean est H dist: " + str(est_H_mean_dist.mean()) + '\n')
 
             if compute_map:
                 myfile.write("nn mean AP: " + str(mAP_m) + "\n")
@@ -512,7 +502,6 @@ def evaluate(args, **options):
         "homography_thresh": homography_thresh,
         "mscore": mscore,
         "mAP": np.array(mAP),
-        # 'est_H_mean_dist': est_H_mean_dist
     }
 
     filename = f"{save_file[:-4]}.npz"

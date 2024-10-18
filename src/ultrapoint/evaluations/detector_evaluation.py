@@ -146,7 +146,7 @@ def warp_keypoints(keypoints, H):
     """
     num_points = keypoints.shape[0]
     homogeneous_points = np.concatenate([keypoints, np.ones((num_points, 1))], axis=1)
-    warped_points = np.dot(homogeneous_points, np.transpose(H))
+    warped_points = np.dot(homogeneous_points, np.transpose(H)).squeeze()
     return warped_points[:, :2] / warped_points[:, 2:]
 
 
@@ -184,9 +184,7 @@ def compute_repeatability(data, keep_k_points=300, distance_thresh=3, verbose=Fa
         return:
             points: numpy (N, (x,y))
         """
-        # warped_points = warp_keypoints(points[:, [1, 0]], H)
-        warped_points = warp_keypoints(points[:, [0, 1]], H)
-        # warped_points[:, [0, 1]] = warped_points[:, [1, 0]]
+        warped_points = warp_keypoints(points[:, :2], H).squeeze()
         mask = (
             (warped_points[:, 0] >= 0)
             & (warped_points[:, 0] < shape[1])
@@ -235,7 +233,6 @@ def compute_repeatability(data, keep_k_points=300, distance_thresh=3, verbose=Fa
 
     # Warp the original keypoints with the true homography
     true_warped_keypoints = keypoints
-    # true_warped_keypoints[:,:2] = warp_keypoints(keypoints[:, [1, 0]], H)
     true_warped_keypoints[:, :2] = warp_keypoints(
         keypoints[:, :2], H
     )  # make sure the input fits the (x,y)

@@ -87,7 +87,7 @@ def compute_homography(
     # descriptor = data['descriptor'][keypoints[:, 0], keypoints[:, 1]]
     # warped_desc = data['warped_desc'][warped_keypoints[:, 0],
     #                                   warped_keypoints[:, 1]]
-    descriptor = data["descriptor"]
+    descriptor = data["desc"]
     warped_desc = data["warped_desc"]
 
     # Match the keypoints with the warped_keypoints with nearest neighbor search
@@ -147,7 +147,7 @@ def compute_homography(
         #             [0, shape[1] - 1, 1],
         #             [shape[0] - 1, 0, 1],
         #             [shape[0] - 1, shape[1] - 1, 1]])
-        real_warped_corners = np.dot(corners, np.transpose(real_H))
+        real_warped_corners = np.dot(corners, np.transpose(real_H)).squeeze()
         real_warped_corners = real_warped_corners[:, :2] / real_warped_corners[:, 2:]
         print("real_warped_corners: ", real_warped_corners)
 
