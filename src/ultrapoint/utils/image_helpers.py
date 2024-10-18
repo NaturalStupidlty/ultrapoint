@@ -1,26 +1,37 @@
-import cv2
-
+from PIL import Image
+import numpy as np
 from typing import Tuple
 
 
-def read_image(path, resize: Tuple[int, int] = None, normalized: bool = True):
+def read_image(
+    path: str,
+    resize: Tuple[int, int] = None,
+    grayscale: bool = True,
+    normalized: bool = True,
+):
     """
-    Read an image from a file and resize it and normalizes if necessary.
+    Read an image from a file, resize it, and normalize if necessary.
 
     Args:
         path (str): Path to the image file.
         resize (Tuple[int, int]): Height and width to resize the image to.
+        grayscale (bool): Whether to read the image in grayscale or not.
         normalized (bool): Whether to normalize the image or not.
+
+    Returns:
+        np.ndarray: Processed image as a NumPy array.
     """
-    input_image = cv2.imread(path)
-    input_image = cv2.resize(
-        input_image,
-        (resize[1], resize[0]),
-        interpolation=cv2.INTER_AREA,
-    )
-    input_image = cv2.cvtColor(input_image, cv2.COLOR_RGB2GRAY)
+    image = Image.open(path)
+
+    if grayscale:
+        image = image.convert("L")
+
+    if resize:
+        image.thumbnail(resize, Image.Resampling.LANCZOS)
+
+    image_np = np.array(image)
 
     if normalized:
-        return input_image.astype("float32") / 255.0
+        return image_np.astype("float32") / 255.0
     else:
-        return input_image
+        return image_np

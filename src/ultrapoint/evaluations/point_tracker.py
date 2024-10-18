@@ -2,7 +2,8 @@ import numpy as np
 
 
 class PointTracker(object):
-    """Class to manage a fixed memory of points and descriptors that enables
+    """
+    Class to manage a fixed memory of points and descriptors that enables
     sparse optical flow point tracking.
 
     Internally, the tracker stores a 'tracks' matrix sized M x (2+L), of M
@@ -106,8 +107,8 @@ class PointTracker(object):
         if pts is None or desc is None:
             print("PointTracker: Warning, no points were added to tracker.")
             return
-        # pts = pts.transpose()
-        # desc = desc.transpose()
+        pts = pts.transpose()
+        desc = desc.transpose()
         assert pts.shape[1] == desc.shape[1]
         # assert pts.shape[0] == desc.shape[0]
         # Initialize last_desc.

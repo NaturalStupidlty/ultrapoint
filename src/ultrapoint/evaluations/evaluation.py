@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import numpy as np
-from src.ultrapoint.evaluations.descriptorriptor_evaluation import compute_homography
+from src.ultrapoint.evaluations.descriptor_evaluation import compute_homography
 from src.ultrapoint.evaluations.detector_evaluation import compute_repeatability
 import cv2
 import matplotlib.pyplot as plt

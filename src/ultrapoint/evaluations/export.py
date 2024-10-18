@@ -1,92 +1,76 @@
 import argparse
 import os
-
+import torch
 import numpy as np
 
 from tqdm import tqdm
 
-from ultrapoint.training import TrainersFactory
-from ultrapoint.utils.utils import prepare_experiment_directory
-from ultrapoint.loggers.loguru import create_logger, logger, log_data_size
+from ultrapoint.models.factories import SuperPointModelsFactory
+from ultrapoint.loggers.loguru import create_logger, logger
 from ultrapoint.dataloaders import DataLoadersFactory
 from ultrapoint.utils.config_helpers import load_config
-from ultrapoint.utils.torch_helpers import squeeze_to_numpy
 from ultrapoint.evaluations.point_tracker import PointTracker
+from ultrapoint.utils.torch_helpers import determine_device
 
 
-def get_keypoints(model, img):
-    """
-    pts: list [numpy (3, N)]
-    desc: list [numpy (256, N)]
-    """
-    # heatmap: numpy [batch, 1, H, W]
-    heatmap = model.__call__(img.to(model._device))
-    points = model.heatmap_to_pts(heatmap)
-
-    desc_sparse = model.sparsify_descriptors()
-
-    return points[0], desc_sparse[0]
-
-
+@torch.no_grad()
 def export_descriptors(config, output_directory):
-    """
-    # input 2 images, output keypoints and correspondence
-    save prediction:
-        pred:
-            'image': np(320,240)
-            'prob' (keypoints): np (N1, 2)
-            'desc': np (N2, 256)
-            'warped_image': np(320,240)
-            'warped_prob' (keypoints): np (N2, 2)
-            'warped_desc': np (N2, 256)
-            'homography': np (3,3)
-            'matches': np [N3, 4]
-    """
-    predictions_folder = os.path.join(output_directory, "predictions")
-    os.makedirs(predictions_folder, exist_ok=True)
+    device = determine_device()
+    os.makedirs(output_directory, exist_ok=True)
 
     val_loader = DataLoadersFactory.create(
         config, dataset_name=config["data"]["dataset"], mode="val"
     )
-    log_data_size(val_loader, config, tag="val")
+    superpoint = SuperPointModelsFactory.create(
+        model_name=config["model"]["name"],
+        weights_path=config["model"]["pretrained"],
+        device=device,
+        **config["model"],
+    )
+    tracker = PointTracker(**config["tracker"])
 
-    model_trainer = TrainersFactory.create(config, config["trainer"], output_directory)
-    model_trainer.val_loader = val_loader
-
-    # tracker
-    tracker = PointTracker(max_length=2, nn_thresh=model_trainer._detection_threshold)
+    def extract_features(image: np.ndarray, device: torch.device):
+        image = torch.Tensor(image).transpose(0, 1).to(device)
+        output = superpoint(image)
+        return (
+            output["keypoints"][0].detach().cpu().numpy(),
+            output["descriptors"][0].detach().cpu().numpy(),
+        )
 
     for sample_index, sample in tqdm(enumerate(val_loader)):
-        image_0, image_1 = sample["image"], sample["warped_image"]
-        points0, descriptors0 = get_keypoints(model_trainer, image_0)
+        points0, descriptors0 = extract_features(sample["image"], device)
         tracker.update(points0, descriptors0)
-        points1, descriptors1 = get_keypoints(model_trainer, image_1)
+
+        points1, descriptors1 = extract_features(sample["warped_image"], device)
         tracker.update(points1, descriptors1)
         matches = tracker.get_matches()
         tracker.clear_desc()
 
         predictions = {
-            "image": squeeze_to_numpy(image_0),
-            "prob": points0.transpose(),
-            "desc": descriptors0.transpose(),
-            "warped_image": squeeze_to_numpy(image_1),
-            "warped_prob": points1.transpose(),
-            "warped_desc": descriptors1.transpose(),
-            "homography": squeeze_to_numpy(sample["homography"]),
-            "matches": matches.transpose(),
+            "image": sample["image"],
+            "prob": points0,
+            "desc": descriptors0,
+            "warped_image": sample["warped_image"],
+            "warped_prob": points1,
+            "warped_desc": descriptors1,
+            "homography": sample["homography"],
+            "matches": matches,
         }
 
-        path = os.path.join(predictions_folder, f"{sample_index}.npz")
+        path = os.path.join(output_directory, f"{sample_index}.npz")
         np.savez_compressed(path, **predictions)
         logger.debug(f"Saved predictions to: {path}")
+        torch.cuda.empty_cache()
 
-    logger.info(f"output pairs: {len(val_loader)}")
+    logger.info(f"Descriptors exported to: {output_directory}")
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=str)
-    parser.add_argument("exper_name", type=str)
+    parser.add_argument(
+        "--output_directory", type=str, default="../assets/exported_descriptors"
+    )
 
     return parser.parse_args()
 
@@ -94,11 +78,8 @@ def parse_arguments():
 def main():
     args = parse_arguments()
     config = load_config(args.config)
-    config["logging"]["directory"] = prepare_experiment_directory(
-        config["logging"]["directory"], args.exper_name
-    )
     create_logger(**config["logging"])
-    export_descriptors(config, config["logging"]["directory"])
+    export_descriptors(config, args.output_directory)
 
 
 if __name__ == "__main__":

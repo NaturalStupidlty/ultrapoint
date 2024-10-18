@@ -4,14 +4,18 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader as DataLoader
 
 from loguru import logger
-from ultrapoint.datasets.images_dataset import ImagesDataset
-from ultrapoint.datasets.synthetic_dataset_gaussian import SyntheticDatasetGaussian
+from ultrapoint.datasets.images.images_dataset import ImagesDataset
+from ultrapoint.datasets.synthetic.synthetic_dataset_gaussian import (
+    SyntheticDatasetGaussian,
+)
+from ultrapoint.datasets.hpatches.hpaches import HPatchesDataset
 
 
 class DataLoadersFactory:
     SUPPORTED_DATASETS = {
         "ImagesDataset": ImagesDataset,
         "SyntheticDatasetGaussian": SyntheticDatasetGaussian,
+        "HPatchesDataset": HPatchesDataset,
     }
 
     @staticmethod
@@ -33,7 +37,6 @@ class DataLoadersFactory:
 
         dataset_module = DataLoadersFactory.SUPPORTED_DATASETS[dataset_name]
         dataset = dataset_module(
-            transforms=transforms.Compose([transforms.ToTensor()]),
             mode=mode,
             **config["data"],
         )

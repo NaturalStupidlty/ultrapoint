@@ -1,11 +1,10 @@
 import numpy
 import torch
-import torchvision
 
 from numpy.linalg import inv
 from torch.utils.data import Dataset
 
-from ultrapoint.datasets.images_loader.image_loader import ImagesLoader
+from ultrapoint.datasets.images.image_loader import ImagesLoader
 from ultrapoint.utils.homographies import sample_homography
 from ultrapoint.utils.image_helpers import read_image
 from ultrapoint.utils.utils import compute_mask
@@ -18,11 +17,8 @@ from ultrapoint.datasets.augmentations import ImageAugmentation
 
 
 class ImagesDataset(Dataset):
-    def __init__(
-        self, transforms: torchvision.transforms.Compose, mode: str = "train", **config
-    ):
+    def __init__(self, mode: str = "train", **config):
         self._config = config
-        self._transforms = transforms
         self._mode = mode
         self._samples = ImagesLoader.load_samples(
             config[f"{mode}_images_folder"], config.get(f"{mode}_labels_folder", None)

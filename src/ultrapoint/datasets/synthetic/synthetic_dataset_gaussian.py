@@ -11,7 +11,7 @@ from tqdm import tqdm
 from loguru import logger
 from pathlib import Path
 
-from src.ultrapoint.datasets import synthetic_dataset
+from ultrapoint.datasets.synthetic import synthetic_dataset
 from src.ultrapoint.utils.homographies import (
     sample_homography as sample_homography,
 )
@@ -41,12 +41,10 @@ class SyntheticDatasetGaussian(data.Dataset):
     def __init__(
         self,
         mode="train",
-        transforms=None,
         **config,
     ):
         self._config = config
         self._data_path = config.get("path", "/tmp")
-        self._transforms = transforms
 
         self.enable_photo_train = config["augmentation"]["photometric"]["enable_train"]
         self.enable_homo_train = config["augmentation"]["homographic"]["enable_train"]
@@ -156,9 +154,7 @@ class SyntheticDatasetGaussian(data.Dataset):
             )
         ):
             img = img[:, :, np.newaxis]
-            # labels = labels.view(-1,H,W)
-            if self._transforms is not None:
-                img = self._transforms(img)
+            img = torch.tensor(img, dtype=torch.float32).view(-1, H, W)
             sample["image"] = img
             # sample = {'image': img, 'labels_2D': labels}
             mask = compute_mask(torch.tensor([H, W]), inv_homography=torch.eye(3))
@@ -193,9 +189,7 @@ class SyntheticDatasetGaussian(data.Dataset):
             warped_pnts = warp_points(pnts, homography_scaling(homography, H, W))
             warped_pnts = filter_points(warped_pnts, torch.tensor([W, H]))
 
-            if self._transforms is not None:
-                warped_img = self._transforms(warped_img)
-            # sample = {'image': warped_img, 'labels_2D': warped_labels}
+            warped_img = torch.tensor(warped_img, dtype=torch.float32).view(-1, H, W)
             sample["image"] = warped_img
 
             mask = compute_mask(
