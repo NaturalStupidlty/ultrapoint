@@ -1,6 +1,6 @@
 data:
     dataset: 'ImagesDataset'
-    val_images_folder: '../../../datasets/navigation/ss/ir/train/all'
+    val_images_folder: '../../../datasets/navigation/ss/ir/val/all'
     val_labels_folder: null
     cache_in_memory: false
     truncate: null
@@ -27,10 +27,10 @@ data:
 model:
     name: 'SuperPointPretrained'
     pretrained: '../assets/pretrained/superpoint_v6_from_tf.pth'
-    detection_threshold: 0.005
+    detection_threshold: 0.015
     nms_radius: 4
-    max_num_keypoints: 1024
-    remove_borders: 4
+    max_num_keypoints: 512
+    remove_borders: 8
     batch_size: 1
     eval_batch_size: 1
 
