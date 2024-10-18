@@ -1,6 +1,6 @@
 import argparse
 
-from ultrapoint.dataloaders import DataLoadersFactory
+from ultrapoint.datasets.dataloaders import DataLoadersFactory
 from ultrapoint.training import Trainer
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.loggers.loguru import create_logger, log_data_size

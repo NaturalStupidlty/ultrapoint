@@ -9,7 +9,7 @@ from pathlib import Path
 from ultrapoint.models.factories import SuperPointModelsFactory
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.utils.draw import draw_keypoints
-from ultrapoint.dataloaders import DataLoadersFactory
+from ultrapoint.datasets.dataloaders import DataLoadersFactory
 from ultrapoint.loggers.loguru import create_logger, logger
 from ultrapoint.utils.torch_helpers import clear_memory, determine_device
 from ultrapoint.utils.utils import saveImg

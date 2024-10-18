@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from ultrapoint.models.factories import SuperPointModelsFactory
 from ultrapoint.loggers.loguru import create_logger, logger
-from ultrapoint.dataloaders import DataLoadersFactory
+from ultrapoint.datasets.dataloaders import DataLoadersFactory
 from ultrapoint.utils.config_helpers import load_config
 from ultrapoint.evaluations.point_tracker import PointTracker
 from ultrapoint.utils.torch_helpers import determine_device
