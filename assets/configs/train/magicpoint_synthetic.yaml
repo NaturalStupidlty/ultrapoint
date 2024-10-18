@@ -166,7 +166,6 @@ train_iter: 200000
 tensorboard_interval: 1000
 save_interval: 2000
 validation_interval: 1000 # one validation of entire val set every N training steps
-validation_size: 10
 
 logging:
   level: DEBUG

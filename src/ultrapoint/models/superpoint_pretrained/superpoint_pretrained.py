@@ -108,13 +108,14 @@ class SuperPoint(nn.Module):
             image = (image * scale).sum(1, keepdim=True)
 
         features = self.backbone(image)
+        descriptor_features = self.descriptor(features)
         descriptors_dense = torch.nn.functional.normalize(
-            self.descriptor(features), p=2, dim=1
+            descriptor_features, p=2, dim=1
         )
 
         # Decode the detection scores
-        scores = self.detector(features)
-        scores = torch.nn.functional.softmax(scores, 1)[:, :-1]
+        detector_features = self.detector(features)
+        scores = torch.nn.functional.softmax(detector_features, 1)[:, :-1]
         b, _, h, w = scores.shape
         scores = scores.permute(0, 2, 3, 1).reshape(b, h, w, self.stride, self.stride)
         scores = scores.permute(0, 1, 3, 2, 4).reshape(
@@ -163,4 +164,6 @@ class SuperPoint(nn.Module):
             "keypoints": keypoints,
             "keypoint_scores": scores,
             "descriptors": descriptors,
+            "detector_features": detector_features,
+            "descriptor_features": descriptor_features,
         }

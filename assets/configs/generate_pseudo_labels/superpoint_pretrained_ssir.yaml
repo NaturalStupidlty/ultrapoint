@@ -35,7 +35,7 @@ model:
     eval_batch_size: 1
 
 skip_existing: false
-save_images: true
+save_images: false
 
 seed: 0
 precision: medium

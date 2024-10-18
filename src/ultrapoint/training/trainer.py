@@ -51,6 +51,7 @@ class Trainer:
         self._config = config
         self._max_iterations = config["train_iter"]
         self._batch_size = config["model"]["batch_size"]
+        self._validation_size = self._config.get("validation_size", None)
 
         self._device = device if device is not None else determine_device()
         logger.info(f"Training with device: {self._device}")
@@ -128,11 +129,7 @@ class Trainer:
                         and self._iteration % self._config["validation_interval"] == 1
                     ):
                         logger.info("Validating...")
-                        for i, sample_val in enumerate(
-                            itertools.islice(
-                                self.val_loader, self._config.get("validation_size")
-                            )
-                        ):
+                        for i, sample_val in enumerate(self.val_loader):
                             self.process_sample(sample_val, self._iteration + i, "val")
 
                     if self._iteration > self._max_iterations:
@@ -330,7 +327,7 @@ class Trainer:
             loss.backward()
             self._optimizer.step()
 
-        if iteration % self._config["tensorboard_interval"] == 0 or task == "val":
+        if iteration % self._config["tensorboard_interval"] == 0:
             logger.info(f"Current iteration: {iteration}")
 
             heatmap_org_nms_batch = self.heatmap_to_nms(

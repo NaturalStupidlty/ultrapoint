@@ -21,6 +21,6 @@ tracker:
     nn_thresh: 0.7
 
 logging:
-  level: DEBUG
+  level: INFO
   directory: ../assets/logs/evaluation
 
