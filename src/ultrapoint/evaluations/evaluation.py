@@ -1,17 +1,25 @@
+import os
+import argparse
+from pathlib import Path
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 from tqdm import tqdm
 from loguru import logger
-
-import matplotlib
-
-matplotlib.use("Agg")
+from numpy.linalg import inv
 
 from ultrapoint.evaluations.descriptor_evaluation import compute_homography
 from ultrapoint.evaluations.detector_evaluation import compute_repeatability
 from ultrapoint.utils.draw import plot_imgs, draw_keypoints
+from ultrapoint.utils.utils import warp_points
+from ultrapoint.utils.utils import filter_points
+
+
+def to3dim(img):
+    if img.ndim == 2:
+        img = img[:, :, np.newaxis]
+    return img
 
 
 def draw_matches_cv(data, matches, plot_points=True):
@@ -23,16 +31,6 @@ def draw_matches_cv(data, matches, plot_points=True):
         keypoints1 = [cv2.KeyPoint(p[0], p[1], 1) for p in matches_pts]
         keypoints2 = [cv2.KeyPoint(p[2], p[3], 1) for p in matches_pts]
         print(f"matches_pts: {matches_pts}")
-        # keypoints1, keypoints2 = [], []
-
-    inliers = data["inliers"].astype(bool)
-
-    # matches = np.array(data['matches'])[inliers].tolist()
-    # matches = matches[inliers].tolist()
-    def to3dim(img):
-        if img.ndim == 2:
-            img = img[:, :, np.newaxis]
-        return img
 
     img1 = to3dim(data["image1"])
     img2 = to3dim(data["image2"])
@@ -50,217 +48,162 @@ def draw_matches_cv(data, matches, plot_points=True):
     )
 
 
-def isfloat(value):
-    try:
-        float(value)
-        return True
-    except ValueError:
-        return False
+def find_files_with_ext(directory: str, extension: str = ".npz"):
+    return [
+        file
+        for file in Path(directory).iterdir()
+        if file.is_file() and file.suffix == extension
+    ]
 
 
-def find_files_with_ext(directory, extension=".npz", if_int=True):
-    # print(os.listdir(directory))
-    list_of_files = []
-    import os
+def warpLabels(pnts, homography, H, W):
+    import torch
 
-    if extension == ".npz":
-        for l in os.listdir(directory):
-            if l.endswith(extension):
-                list_of_files.append(l)
+    """
+    input:
+        pnts: numpy
+        homography: numpy
+    output:
+        warped_pnts: numpy
+    """
+    pnts = torch.tensor(pnts).long()
+    homography = torch.tensor(homography, dtype=torch.float32)
+    warped_pnts = warp_points(
+        torch.stack((pnts[:, 0], pnts[:, 1]), dim=1), homography
+    )  # check the (x, y)
+    warped_pnts = filter_points(warped_pnts, torch.tensor([W, H])).round().long()
+    return warped_pnts.numpy()
 
-    if if_int:
-        list_of_files = [e for e in list_of_files if isfloat(e[:-4])]
-    return list_of_files
 
+def plot_sample(data, repeatability, save_path: str = None):
+    pts = data["prob"]
+    img1 = draw_keypoints(
+        data["image"].squeeze(),
+        pts,
+        np.ones(pts.shape[0]),
+    )
 
-def to3dim(img):
-    if img.ndim == 2:
-        img = img[:, :, np.newaxis]
-    return img
+    pts = data["warped_prob"]
+    img2 = draw_keypoints(data["warped_image"].squeeze(), pts, np.ones(pts.shape[0]))
+
+    plot_imgs(
+        [img1.astype(np.uint8), img2.astype(np.uint8)],
+        titles=["img1", "img2"],
+        dpi=200,
+    )
+    plt.title(f"Repeatability: {repeatability}")
+    plt.tight_layout()
+
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
 
 def evaluate(
     descriptors_path: str,
     repeatability_threshold: int = 3,
     inliers_method: str = "cv",
-    compute_map: bool = True,
     verbose: bool = True,
 ):
     correctness = []
+    localization_error = []
     repeatability = []
-    mscore = []
+    matching_score = []
     mAP = []
-    localization_err = []
-
-    save_file = descriptors_path + "/result.txt"
 
     if args.outputImg:
-        path_warp = descriptors_path + "/warping"
+        path_warp = os.path.join(descriptors_path, "warping")
+        path_match = os.path.join(descriptors_path, "matching")
+        path_rep = os.path.join(descriptors_path, "repeatibility")
         os.makedirs(path_warp, exist_ok=True)
-        path_match = descriptors_path + "/matching"
         os.makedirs(path_match, exist_ok=True)
-        path_rep = descriptors_path + "/repeatibility" + str(repeatability_threshold)
         os.makedirs(path_rep, exist_ok=True)
 
-    files = find_files_with_ext(descriptors_path)
-    files.sort(key=lambda x: int(x[:-4]))
+    logger.info(f"Path: {descriptors_path}")
+    files = find_files_with_ext(descriptors_path)[:3]
+    files.sort(key=lambda x: int(x.stem))
 
-    for f in tqdm(files):
-        f_num = f[:-4]
-        data = np.load(descriptors_path + "/" + f)
-        print("load successfully. ", f)
+    for file in tqdm(files):
+        data = np.load(file)
+        logger.debug(f"Loaded {file} successfully.")
 
         real_H = data["homography"]
         image = data["image"]
         warped_image = data["warped_image"]
-        keypoints = data["prob"][:, [1, 0]]
-        warped_keypoints = data["warped_prob"][:, [1, 0]]
+        keypoints = data["prob"]
+        warped_keypoints = data["warped_prob"]
 
         if args.repeatibility:
-            rep, local_err = compute_repeatability(
+            rep, local_error = compute_repeatability(
                 data,
                 distance_thresh=repeatability_threshold,
-                verbose=False,
             )
             repeatability.append(rep)
+            if local_error > 0:
+                localization_error.append(local_error)
 
-            print("repeatability: %.2f" % (rep))
-            if local_err > 0:
-                localization_err.append(local_err)
-                print("local_err: ", local_err)
+            logger.debug(f"Repeatability: {rep}")
+            logger.debug(f"Localization error: {local_error}")
+
             if args.outputImg:
-                pts = data["prob"]
-                img1 = draw_keypoints(
-                    image.squeeze(),
-                    pts,
-                    np.ones(pts.shape[0]),
-                )
-
-                pts = data["warped_prob"]
-                img2 = draw_keypoints(
-                    warped_image.squeeze(), pts, np.ones(pts.shape[0])
-                )
-
-                plot_imgs(
-                    [img1.astype(np.uint8), img2.astype(np.uint8)],
-                    titles=["img1", "img2"],
-                    dpi=200,
-                )
-                plt.title("rep: " + str(repeatability[-1]))
-                plt.tight_layout()
-
-                plt.savefig(
-                    path_rep + "/" + f_num + ".png", dpi=300, bbox_inches="tight"
+                plot_sample(
+                    data, repeatability, os.path.join(path_rep, file.stem + ".png")
                 )
 
         if args.homography:
-            # estimate result
-            ##### check
             homography_thresh = [1, 3, 5, 10, 20, 50]
-            #####
             result = compute_homography(data, correctness_thresh=homography_thresh)
             correctness.append(result["correctness"])
 
-            # est_H_mean_dist.append(result['mean_dist'])
-            # compute matching score
-            def warpLabels(pnts, homography, H, W):
-                import torch
+            H, W = image.shape
+            filtered_unwarped_keypoints = warpLabels(
+                warped_keypoints, inv(real_H), H, W
+            )
 
+            score = (result["inliers"].sum() * 2) / (
+                keypoints.shape[0] + filtered_unwarped_keypoints.shape[0]
+            )
+
+            print("m. score: ", score)
+            matching_score.append(score)
+
+            def getMatches(data):
+                from src.ultrapoint.models import PointTracker
+
+                descriptor = data["descriptor"]
+                warped_descriptor = data["warped_descriptor"]
+
+                nn_thresh = 1.2
+                print("nn threshold: ", nn_thresh)
+                tracker = PointTracker(max_length=2, nn_thresh=nn_thresh)
+                tracker.update(keypoints.T, descriptor.T)
+                tracker.update(warped_keypoints.T, warped_descriptor.T)
+                matches = tracker.get_matches().T
+                mscores = tracker.get_mscores().T
+
+                # mAP
+                print("matches: ", matches.shape)
+                print("mscores: ", mscores.shape)
+                print("mscore max: ", mscores.max(axis=0))
+                print("mscore min: ", mscores.min(axis=0))
+
+                return matches, mscores
+
+            def getInliers(matches, H, epi=3, verbose=False):
                 """
                 input:
-                    pnts: numpy
-                    homography: numpy
-                output:
-                    warped_pnts: numpy
+                    matches: numpy (n, 4(x1, y1, x2, y2))
+                    H (ground truth homography): numpy (3, 3)
                 """
-                from src.ultrapoint.utils.utils import warp_points
-                from src.ultrapoint.utils.utils import filter_points
+                from src.ultrapoint.evaluations import warp_keypoints
 
-                pnts = torch.tensor(pnts).long()
-                homography = torch.tensor(homography, dtype=torch.float32)
-                warped_pnts = warp_points(
-                    torch.stack((pnts[:, 0], pnts[:, 1]), dim=1), homography
-                )  # check the (x, y)
-                warped_pnts = (
-                    filter_points(warped_pnts, torch.tensor([W, H])).round().long()
-                )
-                return warped_pnts.numpy()
+                # warp points
+                warped_points = warp_keypoints(
+                    matches[:, :2], H
+                )  # make sure the input fits the (x,y)
 
-            from numpy.linalg import inv
-
-            H, W, _, _ = image.shape
-            unwarped_pnts = warpLabels(warped_keypoints, inv(real_H), H, W)
-            score = (result["inliers"].sum() * 2) / (
-                keypoints.shape[0] + unwarped_pnts.shape[0]
-            )
-            print("m. score: ", score)
-            mscore.append(score)
-            # compute map
-            if compute_map:
-
-                def getMatches(data):
-                    from src.ultrapoint.models import PointTracker
-
-                    descriptor = data["descriptor"]
-                    warped_descriptor = data["warped_descriptor"]
-
-                    nn_thresh = 1.2
-                    print("nn threshold: ", nn_thresh)
-                    tracker = PointTracker(max_length=2, nn_thresh=nn_thresh)
-                    # matches = tracker.nn_match_two_way(descriptor, warped_descriptor, nn_)
-                    tracker.update(keypoints.T, descriptor.T)
-                    tracker.update(warped_keypoints.T, warped_descriptor.T)
-                    matches = tracker.get_matches().T
-                    mscores = tracker.get_mscores().T
-
-                    # mAP
-                    # matches = data['matches']
-                    print("matches: ", matches.shape)
-                    print("mscores: ", mscores.shape)
-                    print("mscore max: ", mscores.max(axis=0))
-                    print("mscore min: ", mscores.min(axis=0))
-
-                    return matches, mscores
-
-                def getInliers(matches, H, epi=3, verbose=False):
-                    """
-                    input:
-                        matches: numpy (n, 4(x1, y1, x2, y2))
-                        H (ground truth homography): numpy (3, 3)
-                    """
-                    from src.ultrapoint.evaluations import warp_keypoints
-
-                    # warp points
-                    warped_points = warp_keypoints(
-                        matches[:, :2], H
-                    )  # make sure the input fits the (x,y)
-
-                    # compute point distance
-                    norm = np.linalg.norm(
-                        warped_points - matches[:, 2:4], ord=None, axis=1
-                    )
-                    inliers = norm < epi
-                    if verbose:
-                        print(
-                            "Total matches: ",
-                            inliers.shape[0],
-                            ", inliers: ",
-                            inliers.sum(),
-                            ", percentage: ",
-                            inliers.sum() / inliers.shape[0],
-                        )
-
-                    return inliers
-
-                def getInliers_cv(matches, H=None, epi=3, verbose=False):
-                    import cv2
-
-                    # count inliers: use opencv homography estimation
-                    # Estimate the homography between the matches using RANSAC
-                    H, inliers = cv2.findHomography(
-                        matches[:, [0, 1]], matches[:, [2, 3]], cv2.RANSAC
-                    )
-                    inliers = inliers.flatten()
+                # compute point distance
+                norm = np.linalg.norm(warped_points - matches[:, 2:4], ord=None, axis=1)
+                inliers = norm < epi
+                if verbose:
                     print(
                         "Total matches: ",
                         inliers.shape[0],
@@ -269,58 +212,71 @@ def evaluate(
                         ", percentage: ",
                         inliers.sum() / inliers.shape[0],
                     )
-                    return inliers
 
-                def computeAP(m_test, m_score):
-                    from sklearn.metrics import average_precision_score
+                return inliers
 
-                    average_precision = average_precision_score(m_test, m_score)
-                    print(
-                        "Average precision-recall score: {0:0.2f}".format(
-                            average_precision
-                        )
-                    )
-                    return average_precision
+            def getInliers_cv(matches, H=None, epi=3, verbose=False):
+                import cv2
 
-                def flipArr(arr):
-                    return arr.max() - arr
+                # count inliers: use opencv homography estimation
+                # Estimate the homography between the matches using RANSAC
+                H, inliers = cv2.findHomography(
+                    matches[:, [0, 1]], matches[:, [2, 3]], cv2.RANSAC
+                )
+                inliers = inliers.flatten()
+                print(
+                    "Total matches: ",
+                    inliers.shape[0],
+                    ", inliers: ",
+                    inliers.sum(),
+                    ", percentage: ",
+                    inliers.sum() / inliers.shape[0],
+                )
+                return inliers
 
-                if args.sift:
-                    assert result is not None
-                    matches, mscores = result["matches"], result["mscores"]
-                else:
-                    matches, mscores = getMatches(data)
+            def computeAP(m_test, m_score):
+                from sklearn.metrics import average_precision_score
 
-                real_H = data["homography"]
-                if inliers_method == "gt":
-                    # use ground truth homography
-                    print("use ground truth homography for inliers")
-                    inliers = getInliers(matches, real_H, epi=3, verbose=verbose)
-                else:
-                    # use opencv estimation as inliers
-                    print("use opencv estimation for inliers")
-                    inliers = getInliers_cv(matches, real_H, epi=3, verbose=verbose)
+                average_precision = average_precision_score(m_test, m_score)
+                print(
+                    "Average precision-recall score: {0:0.2f}".format(average_precision)
+                )
+                return average_precision
 
-                ## distance to confidence
-                if args.sift:
-                    m_flip = flipArr(mscores[:])  # for sift
-                else:
-                    m_flip = flipArr(mscores[:, 2])
+            def flipArr(arr):
+                return arr.max() - arr
 
-                if inliers.shape[0] > 0 and inliers.sum() > 0:
-                    #                     m_flip = flipArr(m_flip)
-                    # compute ap
-                    ap = computeAP(inliers, m_flip)
-                else:
-                    ap = 0
+            if args.sift:
+                assert result is not None
+                matches, mscores = result["matches"], result["mscores"]
+            else:
+                matches, mscores = getMatches(data)
 
-                mAP.append(ap)
+            real_H = data["homography"]
+            if inliers_method == "gt":
+                # use ground truth homography
+                print("use ground truth homography for inliers")
+                inliers = getInliers(matches, real_H, epi=3, verbose=verbose)
+            else:
+                # use opencv estimation as inliers
+                print("use opencv estimation for inliers")
+                inliers = getInliers_cv(matches, real_H, epi=3, verbose=verbose)
+
+            ## distance to confidence
+            if args.sift:
+                m_flip = flipArr(mscores[:])  # for sift
+            else:
+                m_flip = flipArr(mscores[:, 2])
+
+            ap = 0
+            if inliers.shape[0] > 0 and inliers.sum() > 0:
+                ap = computeAP(inliers, m_flip)
+
+            mAP.append(ap)
 
             if args.outputImg:
                 # draw warping
                 output = result
-                # img1 = image/255
-                # img2 = warped_image/255
                 img1 = image.squeeze()
                 img2 = warped_image.squeeze()
 
@@ -330,8 +286,7 @@ def evaluate(
                 warped_img1 = cv2.warpPerspective(
                     img1, H, (img2.shape[1], img2.shape[0])
                 )
-                # from numpy.linalg import inv
-                # warped_img1 = cv2.warpPerspective(img1, inv(H), (img2.shape[1], img2.shape[0]))
+
                 img1 = np.concatenate([img1, img1, img1], axis=2)
                 warped_img1 = np.stack([warped_img1, warped_img1, warped_img1], axis=2)
                 img2 = np.concatenate([img2, img2, img2], axis=2)
@@ -341,7 +296,7 @@ def evaluate(
                     dpi=200,
                 )
                 plt.tight_layout()
-                plt.savefig(path_warp + "/" + f_num + ".png")
+                plt.savefig(path_warp + "/" + file.stem + ".png")
 
                 ## plot filtered image
                 img1, img2 = data["image"].squeeze(), data["warped_image"].squeeze()
@@ -354,10 +309,7 @@ def evaluate(
                     dpi=200,
                 )
                 plt.tight_layout()
-                # plt.savefig(path_warp + '/' + f_num + '_fil.png')
-                plt.savefig(path_warp + "/" + f_num + ".png")
-
-                # plt.show()
+                plt.savefig(path_warp + "/" + file.stem + ".png")
 
                 # draw matches
                 result["image1"] = image.squeeze()
@@ -372,16 +324,17 @@ def evaluate(
                 # filename = "correspondence_visualization"
                 plot_imgs([img], titles=["Two images feature correspondences"], dpi=200)
                 plt.tight_layout()
-                plt.savefig(path_match + "/" + f_num + "cv.png", bbox_inches="tight")
+                plt.savefig(
+                    path_match + "/" + file.stem + "cv.png", bbox_inches="tight"
+                )
                 plt.close("all")
-                # pltImshow(img)
 
         if args.plotMatching:
             matches = result["matches"]  # np [N x 4]
             if matches.shape[0] > 0:
                 from src.ultrapoint.utils.draw import draw_matches
 
-                filename = path_match + "/" + f_num + "m.png"
+                filename = path_match + "/" + file.stem + "m.png"
                 ratio = 0.1
                 inliers = result["inliers"]
 
@@ -396,9 +349,9 @@ def evaluate(
 
                 image = data["image"].squeeze()
                 warped_image = data["warped_image"].squeeze()
+
                 ## outliers
                 matches_temp, _ = get_random_m(matches_out, ratio)
-                # print(f"matches_in: {matches_in.shape}, matches_temp: {matches_temp.shape}")
                 draw_matches(
                     image,
                     warped_image,
@@ -409,6 +362,7 @@ def evaluate(
                     show=False,
                     if_fig=True,
                 )
+
                 ## inliers
                 matches_temp, _ = get_random_m(matches_in, ratio)
                 draw_matches(
@@ -422,89 +376,55 @@ def evaluate(
                 )
 
     if args.repeatibility:
-        repeatability_ave = np.array(repeatability).mean()
-        localization_err_m = np.array(localization_err).mean()
-        print("repeatability: ", repeatability_ave)
-        print(
-            "localization error over ",
-            len(localization_err),
-            " images : ",
-            localization_err_m,
-        )
+        logger.info(f"Repeatability threshold: {repeatability_threshold}")
+        logger.info(f"Mean repeatability: {np.array(repeatability).mean()}")
+        logger.info(f"Mean localization error: {np.array(localization_error).mean()}")
+
     if args.homography:
-        correctness_ave = np.array(correctness).mean(axis=0)
-        print("homography estimation threshold", homography_thresh)
-        print("correctness_ave", correctness_ave)
+        logger.info("Homography estimation:")
+        logger.info(f"Homography threshold: {homography_thresh}")
+        logger.info(f"Mean correctness: {np.array(correctness).mean(axis=0)}")
+        logger.info(f"mAP: {np.array(mAP).mean()}")
+        logger.info(f"Matching score: {np.array(matching_score).mean(axis=0)}")
 
-        mscore_m = np.array(mscore).mean(axis=0)
-        print("matching score", mscore_m)
-        if compute_map:
-            mAP_m = np.array(mAP).mean()
-            print("mean AP", mAP_m)
-
-        print("end")
-
-    # save to files
-    with open(save_file, "a") as myfile:
-        myfile.write("path: " + descriptors_path + "\n")
-        myfile.write("output Images: " + str(args.outputImg) + "\n")
+    for i, file in enumerate(files):
+        logger.debug(file)
         if args.repeatibility:
-            myfile.write(
-                "repeatability threshold: " + str(repeatability_threshold) + "\n"
-            )
-            myfile.write("repeatability: " + str(repeatability_ave) + "\n")
-            myfile.write("localization error: " + str(localization_err_m) + "\n")
+            logger.debug(f"Repeatability: {repeatability[i]}")
         if args.homography:
-            myfile.write("Homography estimation: " + "\n")
-            myfile.write("Homography threshold: " + str(homography_thresh) + "\n")
-            myfile.write("Average correctness: " + str(correctness_ave) + "\n")
-
-            if compute_map:
-                myfile.write("nn mean AP: " + str(mAP_m) + "\n")
-            myfile.write("matching score: " + str(mscore_m) + "\n")
-
-        if verbose:
-            myfile.write("====== details =====" + "\n")
-            for i in range(len(files)):
-
-                myfile.write("file: " + files[i])
-                if args.repeatibility:
-                    myfile.write("; rep: " + str(repeatability[i]))
-                if args.homography:
-                    myfile.write("; correct: " + str(correctness[i]))
-                    # matching
-                    myfile.write("; mscore: " + str(mscore[i]))
-                    if compute_map:
-                        myfile.write(":, mean AP: " + str(mAP[i]))
-                myfile.write("\n")
-            myfile.write("======== end ========" + "\n")
+            logger.debug(f"Correctness: {correctness[i]}")
+            logger.debug(f"Matching score: {matching_score[i]}")
+            logger.debug(f"mAP: {mAP[i]}")
 
     dict_of_lists = {
         "repeatability": repeatability,
-        "localization_err": localization_err,
+        "localization_err": localization_error,
         "correctness": np.array(correctness),
         "homography_thresh": homography_thresh,
-        "mscore": mscore,
+        "mscore": matching_score,
         "mAP": np.array(mAP),
     }
 
-    filename = f"{save_file[:-4]}.npz"
-    logger.info(f"save file: {filename}")
+    results_path = os.path.join(descriptors_path, "evaluation.npz")
+    logger.info(f"Saving evaluation results to {results_path}")
     np.savez(
-        filename,
+        results_path,
         **dict_of_lists,
     )
 
 
-if __name__ == "__main__":
-    import argparse
-
+def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("path", type=str)
+    parser.add_argument("descriptors_path", type=str)
     parser.add_argument("--sift", action="store_true", help="use sift matches")
     parser.add_argument("-o", "--outputImg", action="store_true")
     parser.add_argument("-r", "--repeatibility", action="store_true")
     parser.add_argument("-homo", "--homography", action="store_true")
     parser.add_argument("-plm", "--plotMatching", action="store_true")
-    args = parser.parse_args()
-    evaluate(args.path)
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_arguments()
+    evaluate(args.descriptors_path)
