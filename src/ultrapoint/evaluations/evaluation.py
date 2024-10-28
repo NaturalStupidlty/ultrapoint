@@ -10,7 +10,10 @@ from loguru import logger
 from numpy.linalg import inv
 
 from ultrapoint.evaluations.descriptor_evaluation import compute_homography
-from ultrapoint.evaluations.detector_evaluation import compute_repeatability
+from ultrapoint.evaluations.detector_evaluation import (
+    compute_repeatability,
+    warp_keypoints,
+)
 from ultrapoint.utils.draw import plot_imgs, draw_keypoints
 from ultrapoint.utils.utils import warp_points
 from ultrapoint.utils.utils import filter_points
@@ -187,14 +190,12 @@ def evaluate(
 
                 return matches, mscores
 
-            def getInliers(matches, H, epi=3, verbose=False):
+            def getInliers(matches, H, epi=3):
                 """
                 input:
                     matches: numpy (n, 4(x1, y1, x2, y2))
                     H (ground truth homography): numpy (3, 3)
                 """
-                from src.ultrapoint.evaluations import warp_keypoints
-
                 # warp points
                 warped_points = warp_keypoints(
                     matches[:, :2], H
@@ -203,28 +204,8 @@ def evaluate(
                 # compute point distance
                 norm = np.linalg.norm(warped_points - matches[:, 2:4], ord=None, axis=1)
                 inliers = norm < epi
-                if verbose:
-                    print(
-                        "Total matches: ",
-                        inliers.shape[0],
-                        ", inliers: ",
-                        inliers.sum(),
-                        ", percentage: ",
-                        inliers.sum() / inliers.shape[0],
-                    )
 
-                return inliers
-
-            def getInliers_cv(matches, H=None, epi=3, verbose=False):
-                import cv2
-
-                # count inliers: use opencv homography estimation
-                # Estimate the homography between the matches using RANSAC
-                H, inliers = cv2.findHomography(
-                    matches[:, [0, 1]], matches[:, [2, 3]], cv2.RANSAC
-                )
-                inliers = inliers.flatten()
-                print(
+                logger.debug(
                     "Total matches: ",
                     inliers.shape[0],
                     ", inliers: ",
@@ -232,6 +213,26 @@ def evaluate(
                     ", percentage: ",
                     inliers.sum() / inliers.shape[0],
                 )
+
+                return inliers
+
+            def getInliers_cv(matches):
+                # count inliers: use opencv homography estimation
+                # Estimate the homography between the matches using RANSAC
+                H, inliers = cv2.findHomography(
+                    matches[:, [0, 1]], matches[:, [2, 3]], cv2.RANSAC
+                )
+                inliers = inliers.flatten()
+
+                logger.debug(
+                    "Total matches: ",
+                    inliers.shape[0],
+                    ", inliers: ",
+                    inliers.sum(),
+                    ", percentage: ",
+                    inliers.sum() / inliers.shape[0],
+                )
+
                 return inliers
 
             def computeAP(m_test, m_score):
@@ -256,11 +257,11 @@ def evaluate(
             if inliers_method == "gt":
                 # use ground truth homography
                 print("use ground truth homography for inliers")
-                inliers = getInliers(matches, real_H, epi=3, verbose=verbose)
+                inliers = getInliers(matches, real_H, epi=3)
             else:
                 # use opencv estimation as inliers
                 print("use opencv estimation for inliers")
-                inliers = getInliers_cv(matches, real_H, epi=3, verbose=verbose)
+                inliers = getInliers_cv(matches)
 
             ## distance to confidence
             if args.sift:
