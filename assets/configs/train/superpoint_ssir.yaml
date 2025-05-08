@@ -1,8 +1,8 @@
 data:
-    train_labels_folder: '../../../datasets/navigation/ss/ir/train/pseudo_labels'
-    train_images_folder: '../../../datasets/navigation/ss/ir/train/all'
-    val_labels_folder: '../../../datasets/navigation/ss/ir/val/pseudo_labels'
-    val_images_folder: '../../../datasets/navigation/ss/ir/val/all'
+    train_labels_folder: '../../../Data/navigation/ss/ir/train/pseudo_labels'
+    train_images_folder: '../../../Data/navigation/ss/ir/train/all'
+    val_labels_folder: '../../../Data/navigation/ss/ir/val/pseudo_labels'
+    val_images_folder: '../../../Data/navigation/ss/ir/val/all'
     augmentation:
         homographic:
             enable_train: false

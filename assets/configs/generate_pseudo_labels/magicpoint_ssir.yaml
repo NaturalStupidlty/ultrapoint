@@ -1,6 +1,6 @@
 data:
     dataset: 'ImagesDataset'
-    val_images_folder: '../../../datasets/navigation/ss/ir/test/all'
+    val_images_folder: '../../../Data/navigation/ss/ir/test/all'
     val_labels_folder: null
     cache_in_memory: false
     truncate: null

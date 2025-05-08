@@ -11,6 +11,7 @@ def create_logger(level: str, directory: str) -> None:
     filename = f"{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
     logger.add(os.path.join(directory, filename), level="DEBUG", mode="w")
     logger.add(sys.stdout, level=level)
+    logger.info(f"Logging to {os.path.join(directory, filename)}")
 
 
 def log_data_size(train_loader: DataLoader, config: dict, tag: str = "train") -> None:

@@ -19,12 +19,12 @@ class DataLoadersFactory:
 
     @staticmethod
     def create(config: dict, dataset_name: str, mode: str):
-        assert mode in ["train", "val"], f"Mode {mode} not supported"
+        assert mode in ["train", "val", "test"], f"Mode {mode} not supported"
         assert (
             dataset_name in DataLoadersFactory.SUPPORTED_DATASETS
         ), f"Dataset {dataset_name} not supported"
 
-        workers = config["data"].get(f"{mode}_workers", 1)
+        workers = config["data"].get(f"train_workers", 1) if mode == "train" else config["data"].get(f"val_workers", 1)
         batch_size = (
             config["model"]["batch_size"]
             if mode == "train"
@@ -37,7 +37,7 @@ class DataLoadersFactory:
         dataset_module = DataLoadersFactory.SUPPORTED_DATASETS[dataset_name]
         dataset = dataset_module(
             mode=mode,
-            **config["data"],
+            **config["data"].copy(),
         )
 
         return DataLoader(

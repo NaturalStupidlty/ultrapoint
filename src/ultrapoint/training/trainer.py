@@ -1,5 +1,4 @@
 import os
-import itertools
 import numpy
 import torch
 import torch.optim
@@ -11,10 +10,8 @@ from typing import Union, List
 from tqdm import tqdm
 from loguru import logger
 
-from ultrapoint.utils.utils import calculate_precision_recall
 from ultrapoint.loggers.tensorboard import TensorboardLogger
 from ultrapoint.models.factories import SuperPointModelsFactory
-from ultrapoint.utils.utils import labels2Dto3D
 from ultrapoint.utils.torch_helpers import (
     determine_device,
     clear_memory,
@@ -24,30 +21,12 @@ from ultrapoint.utils.torch_helpers import (
 from ultrapoint.utils.config_helpers import save_config
 from ultrapoint.loggers.loguru import log_losses
 from ultrapoint.utils.loss_functions.detector_loss import detector_loss
-from ultrapoint.utils.torch_helpers import torch_to_numpy
-from ultrapoint.utils.utils import flattenDetection
+from ultrapoint.utils.metrics import compute_metrics
+from ultrapoint.utils.utils import labels2Dto3D, mask_to_keypoints, flattenDetection
 
 
 class Trainer:
-    """
-    This is the base class for training classes.
-    Wrap pytorch net to help training process.
-    """
-
     def __init__(self, config, save_path: str, device: Union[str, torch.device] = None):
-        """
-        default dimension:
-            heatmap: torch (batch_size, H, W, 1)
-            dense_desc: torch (batch_size, H, W, 256)
-            pts: [batch_size, np (N, 3)]
-            desc: [batch_size, np(256, N)]
-
-        :param config:
-            dense_loss, sparse_loss (default)
-
-        :param save_path:
-        :param device:
-        """
         self._config = config
         self._max_iterations = config["train_iter"]
         self._batch_size = config["model"]["batch_size"]
@@ -133,7 +112,7 @@ class Trainer:
                             self.process_sample(sample_val, self._iteration + i, "val")
 
                     if self._iteration > self._max_iterations:
-                        logger.info("End training: {self.n_iter}")
+                        logger.info(f"End training: {self._max_iterations}")
                         break
 
                     self._iteration += 1
@@ -330,20 +309,29 @@ class Trainer:
         if iteration % self._config["tensorboard_interval"] == 0:
             logger.info(f"Current iteration: {iteration}")
 
-            heatmap_org_nms_batch = self.heatmap_to_nms(
-                flattenDetection(outputs["detector_features"])
-            )
+            # pass BOTH the raw outputs (for detector_features) and the NMS mask
             self._log_random_sample(task, sample, outputs["keypoints"], iteration)
+            mean_batch_metrics = { "mAP": 0, "Recall": 0, "Precision": 0 }
+            for keypoints, score, labels in zip(outputs["keypoints"], outputs["keypoint_scores"], sample["labels_2D"]):
+                keypoints = keypoints.detach().cpu().numpy()
+                scores = score.detach().cpu().numpy()
+                metrics = compute_metrics(
+                    predictions_keypoints=keypoints,
+                    predictions_scores=scores,
+                    labels_keypoints=mask_to_keypoints(labels),
+                    dist_thresh=5,
+                )
+                mean_batch_metrics["mAP"] += metrics["ap"]
+                mean_batch_metrics["Recall"] += metrics["recall"]
+                mean_batch_metrics["Precision"] += metrics["precision"]
 
-            metrics = self.precision_recall(
-                torch.tensor(heatmap_org_nms_batch[:, numpy.newaxis, ...]),
-                sample["labels_2D"],
-            )
-            self._scalar_logs.update(metrics)
+            mean_batch_metrics["mAP"] /= len(outputs["keypoints"])
+            mean_batch_metrics["Recall"] /= len(outputs["keypoints"])
+            mean_batch_metrics["Precision"] /= len(outputs["keypoints"])
+            self._scalar_logs.update(mean_batch_metrics)
             log_losses(self._scalar_logs, task)
 
         self._tensorboard_logger.log_scalars(iteration, self._scalar_logs, task)
-
         return loss.item()
 
     def _forward_step(self, sample, warped_sample: None):
@@ -376,26 +364,11 @@ class Trainer:
         labels = sample["labels_2D"][random_sample_index].squeeze()
         raw_image = sample["image"][random_sample_index].squeeze().numpy()
         raw_image = cv2.cvtColor(raw_image, cv2.COLOR_GRAY2RGB) * 255
-        predictions_image = raw_image.copy()
         labels_image = raw_image.copy()
 
         labels_coordinates = numpy.where(labels > 0.0)
 
         self._tensorboard_logger.log_image(task, raw_image, iteration, "raw")
-        for x, y in predictions:
-            predictions_image = cv2.circle(
-                predictions_image,
-                (int(x), int(y)),
-                radius=1,
-                color=(255, 0, 0),
-                thickness=-1,
-            )
-        self._tensorboard_logger.log_image(
-            task,
-            predictions_image,
-            iteration,
-            "predictions",
-        )
         for y, x in zip(*labels_coordinates):
             labels_image = cv2.circle(
                 labels_image, (x, y), radius=2, color=(0, 255, 0), thickness=-1
@@ -422,33 +395,6 @@ class Trainer:
         )
 
     @staticmethod
-    def heatmap_to_nms(heatmap):
-        """
-        return:
-            heatmap_nms_batch: np [batch, H, W]
-        """
-        return numpy.stack(
-            [Trainer.heatmap_nms(h) for h in torch_to_numpy(heatmap)], axis=0
-        )
-
-    @staticmethod
-    def heatmap_nms(heatmap, nms_dist=4, conf_thresh=0.015):
-        """
-        input:
-            heatmap: np [(1), H, W]
-        """
-        from src.ultrapoint.utils.utils import getPtsFromHeatmap
-
-        heatmap = heatmap.squeeze()
-        pts_nms = getPtsFromHeatmap(heatmap, conf_thresh, nms_dist)
-        detector_thd_nms_sample = numpy.zeros_like(heatmap)
-        detector_thd_nms_sample[
-            pts_nms[1, :].astype(int), pts_nms[0, :].astype(int)
-        ] = 1
-
-        return detector_thd_nms_sample
-
-    @staticmethod
     def get_masks(mask_2D, cell_size, device="cpu"):
         """
         # 2D mask is constructed into 3D (Hc, Wc) space for training
@@ -465,20 +411,3 @@ class Trainer:
         ).float()
         mask_3D_flattened = torch.prod(mask_3D, 1)
         return mask_3D_flattened
-
-    @staticmethod
-    def precision_recall(predictions, labels):
-        precision_recall_list = []
-        for i in range(labels.shape[0]):
-            precision_recall = calculate_precision_recall(predictions[i], labels[i])
-            precision_recall_list.append(precision_recall)
-        precision = numpy.mean(
-            [
-                precision_recall["precision"]
-                for precision_recall in precision_recall_list
-            ]
-        )
-        recall = numpy.mean(
-            [precision_recall["recall"] for precision_recall in precision_recall_list]
-        )
-        return {"precision": precision, "recall": recall}

@@ -5,61 +5,20 @@
 # loss --> delete if useless
 """
 
-import cv2
+
 import os
-import numpy as np
+import numpy
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
 import datetime
-from src.ultrapoint.utils.d2s import DepthToSpace, SpaceToDepth
+
+from ultrapoint.utils.d2s import DepthToSpace, SpaceToDepth
+from ultrapoint.utils.torch_helpers import torch_to_numpy
 
 
 def saveImg(img, filename):
     cv2.imwrite(filename, img)
-
-
-def pltImshow(img):
-    from matplotlib import pyplot as plt
-
-    plt.imshow(img)
-    plt.show()
-
-
-def sample_homography(inv_scale=3):
-    corner_img = np.array([(-1, -1), (-1, 1), (1, -1), (1, 1)])
-    # offset_r = 1 - 1/inv_scale
-    # img_offset = np.array([(-1, -1), (-1, offset_r), (offset_r, -1), (offset_r, offset_r)])
-    img_offset = corner_img
-    corner_map = (np.random.rand(4, 2) - 0.5) * 2 / (inv_scale + 0.01) + img_offset
-    matrix = cv2.getPerspectiveTransform(np.float32(corner_img), np.float32(corner_map))
-    return matrix
-
-
-def warp_points_np(points, homographies, device="cpu"):
-    """
-    Warp a list of points with the given homography.
-
-    Arguments:
-        points: list of N points, shape (N, 2).
-        homography: batched or not (shapes (B, 3, 3) and (...) respectively).
-
-    Returns: a Tensor of shape (N, 2) or (B, N, 2) (depending on whether the homography
-            is batched) containing the new coordinates of the warped points.
-    """
-    # expand points len to (x, y, 1)
-    batch_size = homographies.shape[0]
-    points = np.concatenate((points, np.ones((points.shape[0], 1))), axis=1)
-    # points = points.to(device)
-    # homographies = homographies.(batch_size*3,3)
-    # warped_points = homographies*points
-    # warped_points = homographies@points.transpose(0,1)
-    warped_points = np.tensordot(homographies, points.transpose(), axes=([2], [0]))
-    # normalize the points
-    warped_points = warped_points.reshape([batch_size, 3, -1])
-    warped_points = warped_points.transpose([0, 2, 1])
-    warped_points = warped_points[:, :, :2] / warped_points[:, :, 2:]
-    return warped_points
 
 
 def homography_scaling_torch(homography, H, W):
@@ -103,7 +62,7 @@ def warp_points(points, homographies, device="cpu"):
     # warped_points = homographies*points
     # points = points.double()
     warped_points = homographies @ points.transpose(0, 1)
-    # warped_points = np.tensordot(homographies, points.transpose(), axes=([2], [0]))
+    # warped_points = numpy.tensordot(homographies, points.transpose(), axes=([2], [0]))
     # normalize the points
     warped_points = warped_points.view([batch_size, 3, -1])
     warped_points = warped_points.transpose(2, 1)
@@ -245,7 +204,7 @@ def flattenDetection(detector_output):
 
     :return:
         3D heatmap
-        np (1, H, C)
+        numpy (1, H, C)
         :or
         tensor (batch_size, 65, Hc, Wc)
 
@@ -268,28 +227,28 @@ def getPtsFromHeatmap(heatmap, conf_thresh, nms_dist):
     """
     :param self:
     :param heatmap:
-        np (H, W)
+        numpy (H, W)
     :return:
     """
     border_remove = 4
 
     H, W = heatmap.shape[0], heatmap.shape[1]
-    xs, ys = np.where(heatmap >= conf_thresh)  # Confidence threshold.
+    xs, ys = numpy.where(heatmap >= conf_thresh)  # Confidence threshold.
     sparsemap = heatmap >= conf_thresh
     if len(xs) == 0:
-        return np.zeros((3, 0))
-    pts = np.zeros((3, len(xs)))  # Populate point data sized 3xN.
+        return numpy.zeros((3, 0))
+    pts = numpy.zeros((3, len(xs)))  # Populate point data sized 3xN.
     pts[0, :] = ys
     pts[1, :] = xs
     pts[2, :] = heatmap[xs, ys]
     pts, _ = nms_fast(pts, H, W, dist_thresh=nms_dist)  # Apply NMS.
-    inds = np.argsort(pts[2, :])
+    inds = numpy.argsort(pts[2, :])
     pts = pts[:, inds[::-1]]  # Sort by confidence.
     # Remove points along border.
     bord = border_remove
-    toremoveW = np.logical_or(pts[0, :] < bord, pts[0, :] >= (W - bord))
-    toremoveH = np.logical_or(pts[1, :] < bord, pts[1, :] >= (H - bord))
-    toremove = np.logical_or(toremoveW, toremoveH)
+    toremoveW = numpy.logical_or(pts[0, :] < bord, pts[0, :] >= (W - bord))
+    toremoveH = numpy.logical_or(pts[1, :] < bord, pts[1, :] >= (H - bord))
+    toremove = numpy.logical_or(toremoveW, toremoveH)
     pts = pts[:, ~toremove]
     return pts
 
@@ -357,25 +316,25 @@ def nms_fast(in_corners, H, W, dist_thresh):
       nmsed_corners - 3xN numpy matrix with surviving corners.
       nmsed_inds - N length numpy vector with surviving corner indices.
     """
-    grid = np.zeros((H, W)).astype(int)  # Track NMS data.
-    inds = np.zeros((H, W)).astype(int)  # Store indices of points.
+    grid = numpy.zeros((H, W)).astype(int)  # Track NMS data.
+    inds = numpy.zeros((H, W)).astype(int)  # Store indices of points.
     # Sort by confidence and round to nearest int.
-    inds1 = np.argsort(-in_corners[2, :])
+    inds1 = numpy.argsort(-in_corners[2, :])
     corners = in_corners[:, inds1]
     rcorners = corners[:2, :].round().astype(int)  # Rounded corners.
     # Check for edge case of 0 or 1 corners.
     if rcorners.shape[1] == 0:
-        return np.zeros((3, 0)).astype(int), np.zeros(0).astype(int)
+        return numpy.zeros((3, 0)).astype(int), numpy.zeros(0).astype(int)
     if rcorners.shape[1] == 1:
-        out = np.vstack((rcorners, in_corners[2])).reshape(3, 1)
-        return out, np.zeros((1)).astype(int)
+        out = numpy.vstack((rcorners, in_corners[2])).reshape(3, 1)
+        return out, numpy.zeros((1)).astype(int)
     # Initialize the grid.
     for i, rc in enumerate(rcorners.T):
         grid[rcorners[1, i], rcorners[0, i]] = 1
         inds[rcorners[1, i], rcorners[0, i]] = i
     # Pad the border of the grid, so that we can NMS points near the border.
     pad = dist_thresh
-    grid = np.pad(grid, ((pad, pad), (pad, pad)), mode="constant")
+    grid = numpy.pad(grid, ((pad, pad), (pad, pad)), mode="constant")
     # Iterate through points, highest to lowest conf, suppress neighborhood.
     count = 0
     for i, rc in enumerate(rcorners.T):
@@ -386,12 +345,12 @@ def nms_fast(in_corners, H, W, dist_thresh):
             grid[pt[1], pt[0]] = -1
             count += 1
     # Get all surviving -1's and return sorted array of remaining corners.
-    keepy, keepx = np.where(grid == -1)
+    keepy, keepx = numpy.where(grid == -1)
     keepy, keepx = keepy - pad, keepx - pad
     inds_keep = inds[keepy, keepx]
     out = corners[:, inds_keep]
     values = out[-1, :]
-    inds2 = np.argsort(-values)
+    inds2 = numpy.argsort(-values)
     out = out[:, inds2]
     out_inds = inds1[inds_keep[inds2]]
     return out, out_inds
@@ -587,23 +546,6 @@ def descriptor_loss(
     return loss_desc, mask, pos_sum, neg_sum
 
 
-def calculate_precision_recall(pred, labels):
-    offset = 10**-6
-    assert (
-        pred.size() == labels.size()
-    ), "Sizes of pred, labels should match when you get the precision/recall!"
-    precision = torch.sum(pred * labels) / (torch.sum(pred) + offset)
-    recall = torch.sum(pred * labels) / (torch.sum(labels) + offset)
-    if precision.item() > 1.0:
-        print(pred)
-        print(labels)
-        import scipy.io.savemat as savemat
-
-        savemat("pre_recall.mat", {"pred": pred, "labels": labels})
-    assert precision.item() <= 1.0 and precision.item() >= 0.0
-    return {"precision": precision, "recall": recall}
-
-
 def prepare_experiment_directory(
     experiment_directory: str, experiment_name: str, date: bool = True
 ) -> str:
@@ -624,17 +566,17 @@ def crop_or_pad_choice(in_num_points, out_num_points, shuffle=False):
     # Adapted from https://github.com/haosulab/frustum_pointnet/blob/635c938f18b9ec1de2de717491fb217df84d2d93/fpointnet/data/datasets/utils.py
     """Crop or pad point cloud to a fixed number; return the indexes
     Args:
-        points (np.ndarray): point cloud. (n, d)
+        points (numpy.ndarray): point cloud. (n, d)
         num_points (int): the number of output points
         shuffle (bool): whether to shuffle the order
     Returns:
-        np.ndarray: output point cloud
-        np.ndarray: index to choose input points
+        numpy.ndarray: output point cloud
+        numpy.ndarray: index to choose input points
     """
     if shuffle:
-        choice = np.random.permutation(in_num_points)
+        choice = numpy.random.permutation(in_num_points)
     else:
-        choice = np.arange(in_num_points)
+        choice = numpy.arange(in_num_points)
     assert out_num_points > 0, (
         "out_num_points = %d must be positive int!" % out_num_points
     )
@@ -642,6 +584,21 @@ def crop_or_pad_choice(in_num_points, out_num_points, shuffle=False):
         choice = choice[:out_num_points]
     else:
         num_pad = out_num_points - in_num_points
-        pad = np.random.choice(choice, num_pad, replace=True)
-        choice = np.concatenate([choice, pad])
+        pad = numpy.random.choice(choice, num_pad, replace=True)
+        choice = numpy.concatenate([choice, pad])
     return choice
+
+
+def mask_to_keypoints(mask):
+    """
+    Convert a binary mask tensor of shape (1,1,H,W) (values 0/1)
+    into an (n,2) numpy array of [x, y] keypoint coordinates.
+    """
+    # squeeze down to (H,W)
+    if isinstance(mask, torch.Tensor):
+        m = mask.squeeze().cpu().detach().numpy()
+    else:
+        m = mask.squeeze()
+    ys, xs = numpy.nonzero(m)
+    # stack into [[x1,y1], [x2,y2], ...]
+    return numpy.stack([xs, ys], axis=1)

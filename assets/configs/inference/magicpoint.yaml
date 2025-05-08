@@ -1,0 +1,21 @@
+data:
+    preprocessing:
+        resize: [240, 320]
+
+model:
+    name: 'SuperPoint'
+    pretrained: '../assets/logs/magicpoint_synth_2025-05-02_00:44:14/checkpoints/SuperPoint_190000_checkpoint.pth.tar'
+    detection_threshold: 0.001
+    nms_radius: 4
+    max_num_keypoints: 512
+    remove_borders: 4
+    batch_size: 1
+    eval_batch_size: 1
+
+save_images: true
+
+seed: 0
+precision: medium
+logging:
+  level: DEBUG
+  directory: ../assets/logs/inference

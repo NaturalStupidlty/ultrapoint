@@ -16,8 +16,18 @@ class HPatchesDataset(data.Dataset):
         self._alteration = config.get("alteration", "all")
         self._truncate = config.get("truncate", None)
         self._samples = {}
-
+        self._shuffle = config.get("shuffle", False)
         self._init_dataset()
+        if self._shuffle:
+            indices = np.arange(len(self._samples["image"]))
+            np.random.shuffle(indices)
+            self._samples["image"] = [self._samples["image"][i] for i in indices]
+            self._samples["warped_image"] = [
+                self._samples["warped_image"][i] for i in indices
+            ]
+            self._samples["homography"] = [
+                self._samples["homography"][i] for i in indices
+            ]
 
     def __getitem__(self, index):
         image = read_image(

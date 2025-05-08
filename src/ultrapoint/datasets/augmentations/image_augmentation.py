@@ -10,7 +10,7 @@ class ImageAugmentation:
             for augmentation in config["photometric"]["augmentations"]:
                 if not augmentation:
                     continue
-                name, parameters = augmentation.popitem()
+                name, parameters = next(iter(augmentation.items()))
                 self._augmentations.append(getattr(albumentations, name)(**parameters))
 
             if config["photometric"]["random_order"]:

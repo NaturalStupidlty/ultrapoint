@@ -3,7 +3,7 @@ import shutil
 import tarfile
 import torch.utils.data as data
 import torch
-import numpy as np
+import numpy
 
 from typing import Union, List
 from imageio import imread
@@ -22,7 +22,7 @@ from ultrapoint.datasets.augmentations import ImageAugmentation
 
 
 def load_as_float(path):
-    return imread(path).astype(np.float32) / 255
+    return imread(path).astype(numpy.float32) / 255
 
 
 class SyntheticDatasetGaussian(data.Dataset):
@@ -45,16 +45,21 @@ class SyntheticDatasetGaussian(data.Dataset):
     ):
         self._config = config
         self._data_path = config.get("path", "/tmp")
-
-        self.enable_photo_train = config["augmentation"]["photometric"]["enable_train"]
-        self.enable_homo_train = config["augmentation"]["homographic"]["enable_train"]
-        self.enable_homo_val = config["augmentation"]["homographic"]["enable_val"]
-        self.enable_photo_val = config["augmentation"]["photometric"]["enable_val"]
-
-        self.action = "training" if mode == "train" else "validation"
+        self._shuffle = config.get("shuffle", False)
+        self._mode = mode
         self._config["augmentation"]["photometric"]["enable"] = config["augmentation"][
             "photometric"
-        ][f"enable_{mode}"]
+        ][f"enable_train" if self._mode == "train" else "enable_val"]
+        self._use_homographic_augmentation = (
+                (self._mode == "train" and self._config["augmentation"]["homographic"]["enable_train"])
+                or
+                (self._mode != "train" and self._config["augmentation"]["homographic"]["enable_val"])
+        )
+        self._use_photometric_augmentation = (
+                (self._mode == "train" and self._config["augmentation"]["photometric"]["enable_train"])
+                or
+                (self._mode != "train" and self._config["augmentation"]["photometric"]["enable_val"])
+        )
 
         self._augmentation = ImageAugmentation(**self._config["augmentation"])
 
@@ -62,10 +67,10 @@ class SyntheticDatasetGaussian(data.Dataset):
         primitives = self.setup_primitives(config["primitives"])
         logger.info(primitives)
 
-        basepath = Path(self._data_path, "synthetic_shapes")
+        basepath = Path(self._data_path)
         basepath.mkdir(parents=True, exist_ok=True)
 
-        splits = {s: {"images": [], "points": []} for s in [self.action]}
+        splits = {s: {"images": [], "points": []} for s in [self._mode]}
         for primitive in primitives:
             tar_path = Path(basepath, f"{primitive}.tar.gz")
             if not tar_path.exists():
@@ -80,7 +85,10 @@ class SyntheticDatasetGaussian(data.Dataset):
             tar.close()
 
             # Gather filenames in all splits, optionally truncate
-            truncate = config["truncate"].get(primitive, 1)
+            if config["truncate"] is not None:
+                truncate = config["truncate"].get(primitive, 1)
+            else:
+                truncate = 1
             path = Path(temp_dir, primitive)
             for s in splits:
                 e = [str(p) for p in Path(path, "images", s).iterdir()]
@@ -91,11 +99,13 @@ class SyntheticDatasetGaussian(data.Dataset):
 
         # Shuffle
         for s in splits:
-            perm = np.random.RandomState(0).permutation(len(splits[s]["images"]))
+            perm = numpy.random.RandomState(0).permutation(len(splits[s]["images"]))
             for obj in ["images", "points"]:
-                splits[s][obj] = np.array(splits[s][obj])[perm].tolist()
+                splits[s][obj] = numpy.array(splits[s][obj])[perm].tolist()
 
         self.crawl_folders(splits)
+        if self._shuffle:
+            numpy.random.shuffle(self.samples)
 
     def __getitem__(self, index):
         """
@@ -132,7 +142,7 @@ class SyntheticDatasetGaussian(data.Dataset):
         H, W = img.shape[0], img.shape[1]
         self.H = H
         self.W = W
-        pnts = np.load(sample["points"])  # (y, x)
+        pnts = numpy.load(sample["points"])  # (y, x)
         pnts = torch.tensor(pnts).float()
         pnts = torch.stack((pnts[:, 1], pnts[:, 0]), dim=1)  # (x, y)
         pnts = filter_points(pnts, torch.tensor([W, H]))
@@ -143,34 +153,14 @@ class SyntheticDatasetGaussian(data.Dataset):
         labels_2D = get_labels(pnts, H, W)
         sample.update({"labels_2D": labels_2D.unsqueeze(0)})
 
-        if not (
-            (
-                self._config["augmentation"]["homographic"]["enable_train"]
-                and self.action == "training"
-            )
-            or (
-                self._config["augmentation"]["homographic"]["enable_val"]
-                and self.action == "validation"
-            )
-        ):
-            img = img[:, :, np.newaxis]
-            img = torch.tensor(img, dtype=torch.float32).view(-1, H, W)
-            sample["image"] = img
-            # sample = {'image': img, 'labels_2D': labels}
-            mask = compute_mask(torch.tensor([H, W]), inv_homography=torch.eye(3))
-            sample.update({"mask": mask})
-            labels_res = get_label_res(H, W, pnts)
-            pnts_post = pnts
-            # pnts_for_gaussian = pnts
-        else:
-            # img_warp = img
+        if self._use_photometric_augmentation:
             from src.ultrapoint.utils.utils import (
                 homography_scaling_torch as homography_scaling,
             )
             from numpy.linalg import inv
 
             homography = sample_homography(
-                np.array([2, 2]),
+                numpy.array([2, 2]),
                 shift=-1,
                 **self._config["augmentation"]["homographic"]["params"],
             )
@@ -184,7 +174,7 @@ class SyntheticDatasetGaussian(data.Dataset):
             img = torch.from_numpy(img)
             warped_img = inv_warp_image(img.squeeze(), inv_homography, mode="bilinear")
             warped_img = warped_img.squeeze().numpy()
-            warped_img = warped_img[:, :, np.newaxis]
+            warped_img = warped_img[:, :, numpy.newaxis]
 
             warped_pnts = warp_points(pnts, homography_scaling(homography, H, W))
             warped_pnts = filter_points(warped_pnts, torch.tensor([W, H]))
@@ -205,6 +195,17 @@ class SyntheticDatasetGaussian(data.Dataset):
             sample.update({"labels_2D": labels_2D.unsqueeze(0)})
 
             labels_res = get_label_res(H, W, warped_pnts)
+        else:
+            img = img[:, :, numpy.newaxis]
+            img = torch.tensor(img, dtype=torch.float32).view(-1, H, W)
+            sample["image"] = img
+            # sample = {'image': img, 'labels_2D': labels}
+            mask = compute_mask(torch.tensor([H, W]), inv_homography=torch.eye(3))
+            sample.update({"mask": mask})
+            labels_res = get_label_res(H, W, pnts)
+
+        if self._use_photometric_augmentation:
+            sample["image"] = torch.tensor(self._augmentation(sample["image"].squeeze().numpy()), dtype=torch.float32).view(-1, H, W)
 
         sample.update({"labels_res": labels_res})
 
@@ -212,13 +213,13 @@ class SyntheticDatasetGaussian(data.Dataset):
             from src.ultrapoint.datasets.data_tools import warpLabels
 
             homography = sample_homography(
-                np.array([2, 2]), shift=-1, **self._config["warped_pair"]["params"]
+                numpy.array([2, 2]), shift=-1, **self._config["warped_pair"]["params"]
             )
 
             ##### use inverse from the sample homography
-            homography = np.linalg.inv(homography)
+            homography = numpy.linalg.inv(homography)
             #####
-            inv_homography = np.linalg.inv(homography)
+            inv_homography = numpy.linalg.inv(homography)
 
             homography = torch.tensor(homography).type(torch.FloatTensor)
             inv_homography = torch.tensor(inv_homography).type(torch.FloatTensor)
@@ -230,12 +231,6 @@ class SyntheticDatasetGaussian(data.Dataset):
             warped_img = inv_warp_image(
                 warped_img.squeeze(), inv_homography, mode="bilinear"
             ).unsqueeze(0)
-            if (self.enable_photo_train == True and self.action == "train") or (
-                self.enable_photo_val and self.action == "val"
-            ):
-                warped_img = self._augmentation(warped_img.squeeze().numpy())
-                warped_img = torch.tensor(warped_img, dtype=torch.float32)
-
             warped_img = warped_img.view(-1, H, W)
 
             # warped_labels = warpLabels(pnts, H, W, homography)
@@ -273,7 +268,7 @@ class SyntheticDatasetGaussian(data.Dataset):
 
         logger.info(f"Generating .tar file for primitive {primitive}.\n")
         synthetic_dataset.set_random_state(
-            np.random.RandomState(config["generation"]["random_seed"])
+            numpy.random.RandomState(config["generation"]["random_seed"])
         )
         for split, size in self._config["generation"]["split_sizes"].items():
             im_dir, pts_dir = [Path(temp_dir, i, split) for i in ["images", "points"]]
@@ -286,19 +281,16 @@ class SyntheticDatasetGaussian(data.Dataset):
                     config["generation"]["image_size"],
                     **config["generation"]["params"]["generate_background"],
                 )
-                points = np.array(
+                points = numpy.array(
                     getattr(synthetic_dataset, primitive)(
                         image, **config["generation"]["params"].get(primitive, {})
                     )
                 )
-                points = np.flip(points, 1)  # reverse convention with opencv
-
-                b = config["preprocessing"]["blur_size"]
-                image = cv2.GaussianBlur(image, (b, b), 0)
+                points = numpy.flip(points, 1)  # reverse convention with opencv
                 points = (
                     points
-                    * np.array(config["preprocessing"]["resize"], float)
-                    / np.array(config["generation"]["image_size"], float)
+                    * numpy.array(config["preprocessing"]["resize"], float)
+                    / numpy.array(config["generation"]["image_size"], float)
                 )
                 image = cv2.resize(
                     image,
@@ -307,7 +299,7 @@ class SyntheticDatasetGaussian(data.Dataset):
                 )
 
                 cv2.imwrite(str(Path(im_dir, "{}.png".format(i))), image)
-                np.save(Path(pts_dir, "{}.npy".format(i)), points)
+                numpy.save(Path(pts_dir, "{}.npy".format(i)), points)
 
         # Pack into a tar file
         tar = tarfile.open(tar_path, mode="w:gz")
@@ -325,7 +317,7 @@ class SyntheticDatasetGaussian(data.Dataset):
     def crawl_folders(self, splits):
         sequence_set = []
         for img, pnts in zip(
-            splits[self.action]["images"], splits[self.action]["points"]
+            splits[self._mode]["images"], splits[self._mode]["points"]
         ):
             sample = {"image": img, "points": pnts}
             sequence_set.append(sample)

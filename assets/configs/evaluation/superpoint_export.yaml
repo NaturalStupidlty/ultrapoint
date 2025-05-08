@@ -1,6 +1,6 @@
 data:
     dataset: 'HPatchesDataset'
-    path: '../../../datasets/hpatches/'
+    path: '../../../Data/hpatches/'
     alteration: 'all' # 'all' or 'i' or 'v'
     preprocessing:
         resize: [240, 320]

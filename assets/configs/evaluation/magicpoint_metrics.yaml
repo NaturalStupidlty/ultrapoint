@@ -1,0 +1,51 @@
+data:
+    dataset: 'SyntheticDatasetGaussian'
+    shuffle: false
+    primitives: [
+        "draw_lines",
+        "draw_polygon",
+        "draw_multiple_polygons",
+        "draw_ellipses",
+        "draw_star",
+        "draw_checkerboard",
+        "draw_stripes",
+        "draw_cube",
+        "gaussian_noise"
+    ]
+    path: '../../../Data/synthetic_shapes/'
+    truncate:
+    preprocessing:
+        resize: [240, 320] # Should be multiples of 8
+
+    augmentation:
+        photometric:
+            enable_train: false
+            enable_val: false
+            random_order: false
+            augmentations:
+
+        homographic:
+            enable_train: false
+            enable_val: false
+
+    warped_pair:
+        enable: false
+
+    train_workers: 12
+    val_workers: 12
+
+model:
+    name: 'SuperPoint'
+    pretrained: '../assets/logs/magicpoint_synth_2025-05-04_14:52:55/checkpoints/SuperPoint_100000_checkpoint.pth.tar'
+    detection_threshold: 0.001
+    nms_radius: 4
+    max_num_keypoints: 512
+    remove_borders: 4
+    batch_size: 1
+    eval_batch_size: 1
+
+seed: 0
+precision: medium
+logging:
+  level: DEBUG
+  directory: ../assets/logs/generate_pseudo_labels

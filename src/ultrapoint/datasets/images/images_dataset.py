@@ -20,9 +20,12 @@ class ImagesDataset(Dataset):
     def __init__(self, mode: str = "train", **config):
         self._config = config
         self._mode = mode
+        self._shuffle = config.get("shuffle", False)
         self._samples = ImagesLoader.load_samples(
             config[f"{mode}_images_folder"], config.get(f"{mode}_labels_folder", None)
         )
+        if self._shuffle:
+            numpy.random.shuffle(self._samples)
 
         photometric_augmentations = config["augmentation"]["photometric"]
         homographic_augmentations = config["augmentation"]["homographic"]

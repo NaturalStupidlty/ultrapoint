@@ -17,7 +17,7 @@ pip install -r requirements.txt
 
 ### Tensorboard logs
 ```bash
-tensorboard --logdir /home/ihor/projects/ultrapoint/assets/logs/
+tensorboard --logdir ./assets/logs/
 ```
 
 You don't need to download synthetic data. You will generate it when first running it.
