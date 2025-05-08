@@ -1,0 +1,180 @@
+data:
+    dataset: 'SyntheticDatasetGaussian'
+    shuffle: false
+    primitives: [
+        "draw_lines",
+        "draw_polygon",
+        "draw_multiple_polygons",
+        "draw_ellipses",
+        "draw_star",
+        "draw_checkerboard",
+        "draw_stripes",
+        "draw_cube",
+        "gaussian_noise"
+    ]
+    path: '../../../Data/synthetic_shapes/'
+    truncate:
+        draw_stripes: 0.2
+        gaussian_noise: 0.1
+    preprocessing:
+        resize: [240, 320] # Should be multiples of 8
+
+    generation:
+        split_sizes:
+            train: 30000 # almost 200,000 total for all the primitives
+            val: 1000
+            test: 100
+        image_size: [480, 640]
+        random_seed: 0
+        params:
+            generate_background:
+                min_kernel_size: 150
+                max_kernel_size: 500
+                min_rad_ratio: 0.02
+                max_rad_ratio: 0.031
+            draw_stripes:
+                transform_params:
+                - 0.1
+                - 0.1
+            draw_multiple_polygons:
+                kernel_boundaries:
+                - 50
+                - 100
+
+    augmentation:
+        photometric:
+            enable_train: true
+            enable_val: true
+            random_order: true
+            augmentations:
+                - CoarseDropout:
+                    max_holes: 75
+                    max_height: 1
+                    max_width: 1
+                    fill_value: 0
+                    p: 0.5
+                - CoarseDropout:
+                    max_holes: 10
+                    max_height: 2
+                    max_width: 2
+                    fill_value: 0
+                    p: 0.5
+                - CoarseDropout:
+                    max_holes: 75
+                    max_height: 1
+                    max_width: 1
+                    fill_value: 255
+                    p: 0.5
+                - CoarseDropout:
+                    max_holes: 10
+                    max_height: 2
+                    max_width: 2
+                    fill_value: 255
+                    p: 0.5
+                - ISONoise:
+                    color_shift:
+                      - 0.01
+                      - 0.05
+                    intensity:
+                      - 0.1
+                      - 0.5
+                    p: 1.0
+                - GaussNoise:
+                    var_limit:
+                      - 0.0
+                      - 0.1
+                    p: 1.0
+                - GaussianBlur:
+                    blur_limit:
+                      - 5
+                      - 5
+                    p: 1.0
+                - MotionBlur:
+                    blur_limit:
+                      - 3
+                      - 5
+                    p: 0.75
+                - RandomBrightnessContrast:
+                    brightness_limit: 0.2
+                    contrast_limit: 0.2
+                    p: 1.0
+
+        homographic:
+            enable_train: true
+            enable_val: true
+            params:
+                translation: true
+                rotation: true
+                scaling: true
+                perspective: true
+                scaling_amplitude: 0.2
+                perspective_amplitude_x: 0.2
+                perspective_amplitude_y: 0.2
+                patch_ratio: 0.8
+                max_angle: 1.570796327  # pi / 2
+                allow_artifacts: true
+                translation_overflow: 0.05
+            valid_border_margin: 2
+
+    warped_pair:
+        enable: false # false when training only on detector
+        params:
+            translation: true
+            rotation: true
+            scaling: true
+            perspective: true
+            scaling_amplitude: 0.2
+            perspective_amplitude_x: 0.2
+            perspective_amplitude_y: 0.2
+            patch_ratio: 0.85
+            max_angle: 1.57
+            allow_artifacts: true # true
+        valid_border_margin: 3
+
+    train_workers: 16
+    val_workers: 16
+
+model:
+    name: 'UltraPoint'
+    pretrained: null
+    params: {
+    }
+    detector_loss:
+        loss_type: 'softmax'
+
+    batch_size: 32
+    eval_batch_size: 32
+    learning_rate: 0.001
+    detection_threshold: 0.001 # 1/65
+    nms_radius: 4
+    remove_borders: 4
+    max_num_keypoints: null
+    lambda_loss: 0 # disable descriptor loss
+    dense_loss:
+        enable: false
+        params:
+            descriptor_dist: 4 # 4, 7.5
+            lambda_d: 800 # 800
+    sparse_loss:
+        enable: true
+        params:
+            num_matching_attempts: 1000
+            num_masked_non_matches_per_match: 100
+            lamda_d: 1
+            dist: 'cos'
+            method: '2d'
+
+train_iter: 200000
+tensorboard_interval: 1000
+save_interval: 1000
+validation_interval: 10000 # one validation of entire val set every N training steps
+
+logging:
+  level: DEBUG
+  directory: '../assets/logs/'
+
+pretrained: null
+reset_iter: True
+
+seed: 0
+precision: medium
