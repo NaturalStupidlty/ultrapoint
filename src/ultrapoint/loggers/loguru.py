@@ -1,6 +1,7 @@
 import os
 import time
 import sys
+import torch
 from loguru import logger
 from torch.utils.data import DataLoader
 
@@ -20,15 +21,11 @@ def log_data_size(train_loader: DataLoader, config: dict, tag: str = "train") ->
     )
 
 
-def log_losses(losses, task: str = "training"):
-    """
-    # print loss for tracking training
-    :param losses:
-    :param task:
-    :return:
-    """
+def log_scalars(losses, task: str = "training"):
     for element in list(losses):
-        logger.info(f"{task} - {element}: {losses[element].item()}")
+        if isinstance(losses[element], torch.Tensor):
+            losses[element] = losses[element].item()
+        logger.info(f"{task} - {element}: {losses[element]}")
 
 
 def log_dict_attr(dictionary, attr=None):

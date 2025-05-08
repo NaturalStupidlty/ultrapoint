@@ -41,8 +41,8 @@ model:
     nms_radius: 4
     max_num_keypoints: 512
     remove_borders: 4
-    batch_size: 1
-    eval_batch_size: 1
+    batch_size: 32
+    eval_batch_size: 32
 
 seed: 0
 precision: medium

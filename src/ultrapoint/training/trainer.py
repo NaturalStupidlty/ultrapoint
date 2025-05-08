@@ -19,10 +19,10 @@ from ultrapoint.utils.torch_helpers import (
     make_deterministic,
 )
 from ultrapoint.utils.config_helpers import save_config
-from ultrapoint.loggers.loguru import log_losses
+from ultrapoint.loggers.loguru import log_scalars
 from ultrapoint.utils.loss_functions.detector_loss import detector_loss
-from ultrapoint.utils.metrics import compute_metrics
-from ultrapoint.utils.utils import labels2Dto3D, mask_to_keypoints, flattenDetection
+from ultrapoint.utils.metrics import compute_batch_metrics
+from ultrapoint.utils.utils import labels2Dto3D, mask_to_keypoints
 
 
 class Trainer:
@@ -99,13 +99,13 @@ class Trainer:
                     loss = self.process_sample(sample_train, self._iteration, "train")
                     running_losses.append(loss)
 
-                    if self._iteration % self._config["save_interval"] == 0:
+                    if self._iteration + 1 % self._config["save_interval"] == 0:
                         logger.info(f"Current iteration: {self._iteration}")
                         self.save()
 
                     if (
                         self._eval
-                        and self._iteration % self._config["validation_interval"] == 1
+                        and self._iteration + 1 % self._config["validation_interval"] == 0
                     ):
                         logger.info("Validating...")
                         for i, sample_val in enumerate(self.val_loader):
@@ -308,28 +308,21 @@ class Trainer:
 
         if iteration % self._config["tensorboard_interval"] == 0:
             logger.info(f"Current iteration: {iteration}")
-
-            # pass BOTH the raw outputs (for detector_features) and the NMS mask
             self._log_random_sample(task, sample, outputs["keypoints"], iteration)
-            mean_batch_metrics = { "mAP": 0, "Recall": 0, "Precision": 0 }
-            for keypoints, score, labels in zip(outputs["keypoints"], outputs["keypoint_scores"], sample["labels_2D"]):
-                keypoints = keypoints.detach().cpu().numpy()
-                scores = score.detach().cpu().numpy()
-                metrics = compute_metrics(
-                    predictions_keypoints=keypoints,
-                    predictions_scores=scores,
-                    labels_keypoints=mask_to_keypoints(labels),
-                    dist_thresh=5,
-                )
-                mean_batch_metrics["mAP"] += metrics["ap"]
-                mean_batch_metrics["Recall"] += metrics["recall"]
-                mean_batch_metrics["Precision"] += metrics["precision"]
 
-            mean_batch_metrics["mAP"] /= len(outputs["keypoints"])
-            mean_batch_metrics["Recall"] /= len(outputs["keypoints"])
-            mean_batch_metrics["Precision"] /= len(outputs["keypoints"])
+            preds_kpts = [kp.detach().cpu().numpy() for kp in outputs["keypoints"]]
+            preds_scores = [sc.detach().cpu().numpy() for sc in outputs["keypoint_scores"]]
+            gt_kpts = [mask_to_keypoints(lbl) for lbl in sample["labels_2D"]]
+
+            # compute mean mAP / Recall@5px / Precision@5px over the batch
+            mean_batch_metrics = compute_batch_metrics(
+                batch_predictions_keypoints=preds_kpts,
+                batch_predictions_scores=preds_scores,
+                batch_labels_keypoints=gt_kpts,
+                dist_thresh=5,
+            )
             self._scalar_logs.update(mean_batch_metrics)
-            log_losses(self._scalar_logs, task)
+            log_scalars(self._scalar_logs, task)
 
         self._tensorboard_logger.log_scalars(iteration, self._scalar_logs, task)
         return loss.item()

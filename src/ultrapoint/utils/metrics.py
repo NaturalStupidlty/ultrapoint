@@ -124,3 +124,44 @@ def compute_metrics(predictions_keypoints, predictions_scores, labels_keypoints,
 
     ap = average_precision(precision, recall)
     return {"ap": ap, "recall": recall[-2], "precision": precision[-2]}
+
+
+def compute_batch_metrics(
+    batch_predictions_keypoints,
+    batch_predictions_scores,
+    batch_labels_keypoints,
+    dist_thresh=5,
+):
+    """
+    Compute mean AP, recall@0.5 and precision@0.5 over a batch.
+
+    Args:
+        batch_predictions_keypoints: sequence (or array) of length B; each element is (Ni,2) array
+        batch_predictions_scores:    sequence of length B; each element is (Ni,) array
+        batch_labels_keypoints:      sequence of length B; each element is (Mi,2) array
+        dist_thresh: float threshold
+
+    Returns:
+        dict with keys: "mAP", "Recall", "Precision"
+    """
+    # compute per-sample metrics
+    per_sample = [
+        compute_metrics(preds, scores, labels, dist_thresh=dist_thresh)
+        for preds, scores, labels in zip(
+            batch_predictions_keypoints,
+            batch_predictions_scores,
+            batch_labels_keypoints,
+        )
+    ]
+
+    # extract arrays of each metric
+    aps = numpy.array([m["ap"] for m in per_sample], dtype=float)
+    recalls = numpy.array([m["recall"] for m in per_sample], dtype=float)
+    precisions = numpy.array([m["precision"] for m in per_sample], dtype=float)
+
+    # return mean over batch
+    return {
+        "mAP":        float(numpy.mean(aps)),
+        "Recall":    float(numpy.mean(recalls)),
+        "Precision": float(numpy.mean(precisions)),
+    }
