@@ -1,7 +1,6 @@
-from ultrapoint.utils.correspondence_tools import correspondence_finder
-import numpy as np
 import torch
 
+from ultrapoint.utils.correspondence_tools import correspondence_finder
 from ultrapoint.utils.homographies import scale_homography_torch
 from ultrapoint.utils.loss_functions.pixelwise_contrastive_loss import (
     PixelwiseContrastiveLoss,
@@ -343,71 +342,3 @@ def batch_descriptor_loss_sparse(
         torch.stack(neg_loss),
     )
     return loss.mean(), None, pos_loss.mean(), neg_loss.mean()
-
-
-if __name__ == "__main__":
-    # config
-    H, W = 240, 320
-    cell_size = 8
-    Hc, Wc = H // cell_size, W // cell_size
-
-    D = 3
-    torch.manual_seed(0)
-    np.random.seed(0)
-
-    batch_size = 2
-    device = "cpu"
-    method = "2d"
-
-    num_matching_attempts = 1000
-    num_masked_non_matches_per_match = 200
-    lamda_d = 1
-
-    homographies = np.identity(3)[np.newaxis, :, :]
-    homographies = np.tile(homographies, [batch_size, 1, 1])
-
-    def randomDescriptor():
-        descriptors = torch.tensor(
-            np.random.rand(2, D, Hc, Wc) - 0.5, dtype=torch.float32
-        )
-        dn = torch.norm(descriptors, p=2, dim=1)  # Compute the norm.
-        descriptors = descriptors.div(
-            torch.unsqueeze(dn, 1)
-        )  # Divide by norm to normalize.
-        return descriptors
-
-    # descriptors = torch.tensor(np.random.rand(2, D, Hc, Wc), dtype=torch.float32)
-    # dn = torch.norm(descriptors, p=2, dim=1) # Compute the norm.
-    # desc = descriptors.div(torch.unsqueeze(dn, 1)) # Divide by norm to normalize.
-    descriptors = randomDescriptor()
-    print("descriptors: ", descriptors.shape)
-    # descriptors_warped = torch.tensor(np.random.rand(2, D, Hc, Wc), dtype=torch.float32)
-    descriptors_warped = randomDescriptor()
-    descriptor_loss = descriptor_loss_sparse(
-        descriptors[0],
-        descriptors_warped[0],
-        torch.tensor(homographies[0], dtype=torch.float32),
-        method=method,
-    )
-    print("descriptor_loss: ", descriptor_loss)
-
-    # loss = batch_descriptor_loss_sparse(descriptors, descriptors_warped,
-    #                                     torch.tensor(homographies, dtype=torch.float32),
-    #                                     num_matching_attempts = num_matching_attempts,
-    #                                     num_masked_non_matches_per_match = num_masked_non_matches_per_match,
-    #                                     device=device,
-    #                                     lamda_d = lamda_d,
-    #                                     method=method)
-    # print("batch descriptor_loss: ", loss)
-
-    loss = batch_descriptor_loss_sparse(
-        descriptors,
-        descriptors,
-        torch.tensor(homographies, dtype=torch.float32),
-        num_matching_attempts=num_matching_attempts,
-        num_masked_non_matches_per_match=num_masked_non_matches_per_match,
-        device=device,
-        lamda_d=lamda_d,
-        method=method,
-    )
-    print("same descriptor_loss (pos should be 0): ", loss)
