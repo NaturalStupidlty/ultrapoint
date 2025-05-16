@@ -6,7 +6,6 @@ from loguru import logger
 
 from ultrapoint.models.ultrapoint import UltraPoint
 from ultrapoint.models.superpoint import SuperPoint
-from ultrapoint.models.superpoint_pretrained import SuperPointPretrained
 
 
 class ModelsFactory(ABC):
@@ -30,7 +29,6 @@ class SuperPointModelsFactory(ModelsFactory):
     SUPPORTED_MODELS = {
         "UltraPoint": UltraPoint,
         "SuperPoint": SuperPoint,
-        "SuperPointPretrained": SuperPointPretrained,
     }
 
     @staticmethod
