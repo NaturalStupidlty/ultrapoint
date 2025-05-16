@@ -18,31 +18,39 @@ from ultrapoint.utils.torch_helpers import (
 
 @torch.no_grad()
 def benchmark_model(
-    config: dict,
-    n_tries: int,
-    batch_size: int,
-    device: Union[str, torch.device] = "cuda",
+    model: torch.nn.Module,
+    input_shape: tuple,
+    n_tries: int = 1000,
+    n_warmup: int = 20,
+    device: torch.device = torch.device("cuda"),
 ):
-    model = SuperPointModelsFactory.create(
-        model_name=config["model"]["name"],
-        weights_path=config["model"]["pretrained"],
-        device=device,
-        **config["model"],
-    )
+    # Move model to device and set eval mode
     model.to(device)
     model.eval()
 
-    height, width = config["data"]["preprocessing"]["resize"]
+    # Pre-generate randomized inputs on GPU
+    inputs = [torch.randn(input_shape, device=device) for _ in range(n_tries + n_warmup)]
 
-    times = []
-    for _ in range(n_tries):
-        input_tensor = torch.randn(batch_size, 1, height, width).to(device)
-        start = time.time()
-        model(input_tensor)
-        end = time.time()
-        times.append(end - start)
+    # Warm-up iterations (excluded from timing)
+    for i in range(n_warmup):
+        _ = model(inputs[i])
+    torch.cuda.synchronize()
 
-    return sum(times) / len(times)
+    # Use CUDA events for precise timing
+    start_event = torch.cuda.Event(enable_timing=True)
+    end_event = torch.cuda.Event(enable_timing=True)
+    times_ms = []
+
+    for i in range(n_warmup, n_warmup + n_tries):
+        start_event.record()
+        model(inputs[i])
+        end_event.record()
+        torch.cuda.synchronize()
+        times_ms.append(start_event.elapsed_time(end_event))
+
+    avg_time_ms = sum(times_ms) / len(times_ms)
+    print(f"Average inference time per batch: {avg_time_ms:.6f} ms")
+    return avg_time_ms / 1000  # Return in seconds
 
 
 def parse_arguments():
@@ -61,8 +69,24 @@ def main():
     make_deterministic(config["seed"])
     set_precision(config["precision"])
     device = determine_device()
+    model = SuperPointModelsFactory.create(
+        model_name=config["model"]["name"],
+        weights_path=config["model"]["pretrained"],
+        device="cuda",
+        **config["model"],
+    )
+
+    # Resize from config
+    H, W = config["data"]["preprocessing"]["resize"]
+    batch_size = 1
+
+    # Benchmark
     average_iteration_time = benchmark_model(
-        config, args.n_tries, args.batch_size, device=device
+        model,
+        input_shape=(batch_size, 1, H, W),
+        n_tries=args.n_tries,
+        n_warmup=100,
+        device=torch.device("cuda"),
     )
     logger.info(f"DEVICE: {device}")
     logger.info(f"Average inference time: {average_iteration_time:.8f} s")
