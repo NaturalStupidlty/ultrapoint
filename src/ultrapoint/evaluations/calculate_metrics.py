@@ -1,6 +1,5 @@
 import argparse
 
-from collections import defaultdict
 from tqdm import tqdm
 from loguru import logger
 
@@ -30,18 +29,24 @@ def metrics_inference(config):
         device=device,
         **config["model"],
     )
+    superpoint.eval()  # Ensure model is in eval mode
+
     val_loader = DataLoadersFactory.create(
-        config, dataset_name=config["data"]["dataset"], mode="val"
+        config, dataset_name=config["data"]["dataset"], mode="test"
     )
 
-    metrics_acc = defaultdict(list)
     total_images = 0
+    total_mAP = 0.0
+    total_recall = 0.0
+    total_precision = 0.0
 
     for batch in tqdm(val_loader, desc="Calculating metrics"):
         try:
+            B = batch["image"].size(0)
+            total_images += B
+
             output = superpoint(batch["image"].to(device))
 
-            B = batch["image"].size(0)
             # collect per-sample preds & gts
             preds_kpts = [ output["keypoints"][i].detach().cpu().numpy()
                             for i in range(B) ]
@@ -50,7 +55,7 @@ def metrics_inference(config):
             gt_kpts     = [ mask_to_keypoints(batch["labels_2D"][i])
                             for i in range(B) ]
 
-            # compute this batch's mean AP / R@0.5 / P@0.5
+            # compute this batch's metrics
             batch_metrics = compute_batch_metrics(
                 batch_predictions_keypoints=preds_kpts,
                 batch_predictions_scores=preds_scores,
@@ -58,22 +63,32 @@ def metrics_inference(config):
                 dist_thresh=config.get("eval_dist_thresh", 5),
             )
 
-            metrics_acc["mAP"].append(batch_metrics["mAP"])
-            metrics_acc["Recall"].append(batch_metrics["Recall"])
-            metrics_acc["Precision"].append(batch_metrics["Precision"])
-            total_images += B
+            # weight metrics by number of samples in batch
+            total_mAP += batch_metrics["mAP"] * B
+            total_recall += batch_metrics["Recall"] * B
+            total_precision += batch_metrics["Precision"] * B
+
+            # Optionally log batch size and batch-level metrics
+            # logger.debug(f"Batch size: {B}, mAP: {batch_metrics['mAP']:.4f}")
 
         except KeyboardInterrupt:
             clear_memory()
             break
 
-    # average over all batches (assuming roughly equal batch sizes)
-    mean_metrics = { k: sum(v) / len(v) for k, v in metrics_acc.items() }
+    if total_images == 0:
+        logger.warning("No images processed.")
+        return
 
-    logger.info(f"Processed {total_images} images in {len(metrics_acc['AP'])} batches.")
+    mean_metrics = {
+        "mAP": total_mAP / total_images,
+        "Recall": total_recall / total_images,
+        "Precision": total_precision / total_images,
+    }
+
+    logger.info(f"Processed {total_images} images.")
     logger.info("Mean metrics over validation set:")
-    logger.info(f"  AP:        {mean_metrics['AP']:.4f}")
-    logger.info(f"  Recall@0.5:{mean_metrics['Recall']:.4f}")
+    logger.info(f"  AP:            {mean_metrics['mAP']:.4f}")
+    logger.info(f"  Recall@0.5:    {mean_metrics['Recall']:.4f}")
     logger.info(f"  Precision@0.5: {mean_metrics['Precision']:.4f}")
 
 

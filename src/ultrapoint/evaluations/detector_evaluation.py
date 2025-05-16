@@ -59,9 +59,9 @@ def compute_repeatability(data, distance_thresh=3):
         return points[mask, :]
 
     warped_keypoints = keep_true_keypoints(
-        data["warped_prob"], np.linalg.inv(data["homography"]), data["image"].shape
+        data["warped_keypoints"], np.linalg.inv(data["homography"]), data["image"].shape
     )
-    true_warped_keypoints = warp_keypoints(data["prob"], data["homography"])
+    true_warped_keypoints = warp_keypoints(data["keypoints"], data["homography"])
     true_warped_keypoints = filter_keypoints(true_warped_keypoints, data["image"].shape)
     norms = np.linalg.norm(
         true_warped_keypoints[:, np.newaxis, :] - warped_keypoints[np.newaxis, :, :],
@@ -86,7 +86,8 @@ def compute_repeatability(data, distance_thresh=3):
             true_warped_keypoints.shape[0] + warped_keypoints.shape[0]
         )
 
-        localization_err += local_error1 / (count1 + count2)
-        localization_err += local_error2 / (count1 + count2)
+        if count1 > 0 or count2 > 0:
+            localization_err += local_error1 / (count1 + count2)
+            localization_err += local_error2 / (count1 + count2)
 
     return repeatability, localization_err

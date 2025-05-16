@@ -1,70 +1,6 @@
-"""Script for descriptor evaluation
-
-Updated by You-Yi from https://github.com/eric-yyjau/image_denoising_matching
-Date: 2020/08/05
-
-"""
-
-import os
-from os import path as osp
-from glob import glob
-
 import cv2
 import numpy as np
 from loguru import logger
-
-
-def get_paths(exper_name):
-    """
-    Return a list of paths to the outputs of the experiment.
-    """
-    return glob(
-        osp.join(os.getenv("EXPER_PATH"), "outputs/{}/*.npz".format(exper_name))
-    )
-
-
-def keep_shared_points(keypoint_map, H, keep_k_points=1000):
-    """
-    Compute a list of keypoints from the map, filter the list of points by keeping
-    only the points that once mapped by H are still inside the shape of the map
-    and keep at most 'keep_k_points' keypoints in the image.
-    """
-
-    def select_k_best(points, k):
-        """Select the k most probable points (and strip their proba).
-        points has shape (num_points, 3) where the last coordinate is the proba."""
-        sorted_prob = points[points[:, 2].argsort(), :2]
-        start = min(k, points.shape[0])
-        return sorted_prob[-start:, :]
-
-    def warp_keypoints(keypoints, H):
-        num_points = keypoints.shape[0]
-        homogeneous_points = np.concatenate(
-            [keypoints, np.ones((num_points, 1))], axis=1
-        )
-        warped_points = np.dot(homogeneous_points, np.transpose(H))
-        return warped_points[:, :2] / warped_points[:, 2:]
-
-    def keep_true_keypoints(points, H, shape):
-        """Keep only the points whose warped coordinates by H
-        are still inside shape."""
-        warped_points = warp_keypoints(points[:, [1, 0]], H)
-        warped_points[:, [0, 1]] = warped_points[:, [1, 0]]
-        mask = (
-            (warped_points[:, 0] >= 0)
-            & (warped_points[:, 0] < shape[0])
-            & (warped_points[:, 1] >= 0)
-            & (warped_points[:, 1] < shape[1])
-        )
-        return points[mask, :]
-
-    keypoints = np.where(keypoint_map > 0)
-    prob = keypoint_map[keypoints[0], keypoints[1]]
-    keypoints = np.stack([keypoints[0], keypoints[1], prob], axis=-1)
-    keypoints = keep_true_keypoints(keypoints, H, keypoint_map.shape)
-    keypoints = select_k_best(keypoints, keep_k_points)
-
-    return keypoints.astype(int)
 
 
 def compute_homography(data, correctness_thresh=3, shape=(240, 320)):
@@ -72,14 +8,14 @@ def compute_homography(data, correctness_thresh=3, shape=(240, 320)):
     Compute the homography between 2 sets of detections and descriptors inside data.
     """
     bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
-    cv2_matches = bf.match(data["desc"], data["warped_desc"])
+    cv2_matches = bf.match(data["descriptor"], data["warped_descriptor"])
 
     # Keeps only the points shared between the two views
     m_dist = np.array([m.distance for m in cv2_matches])
     query_matches = np.array([m.queryIdx for m in cv2_matches])
     train_matches = np.array([m.trainIdx for m in cv2_matches])
-    m_keypoints = data["prob"][query_matches, :]
-    m_warped_keypoints = data["warped_prob"][train_matches, :]
+    m_keypoints = data["keypoints"][query_matches, :]
+    m_warped_keypoints = data["warped_keypoints"][train_matches, :]
 
     matches = np.hstack((m_keypoints, m_warped_keypoints))
     logger.debug(f"Homography matches: {matches.shape}")
@@ -120,8 +56,8 @@ def compute_homography(data, correctness_thresh=3, shape=(240, 320)):
 
     return {
         "correctness": correctness,
-        "keypoints1": data["prob"],
-        "keypoints2": data["warped_prob"],
+        "keypoints1": data["keypoints"],
+        "keypoints2": data["warped_keypoints"],
         "matches": matches,  # cv2.match
         "cv2_matches": cv2_matches,
         "mscores": m_dist / (m_dist.max()),  # normalized distance
@@ -129,41 +65,3 @@ def compute_homography(data, correctness_thresh=3, shape=(240, 320)):
         "homography": H,
         "mean_dist": mean_dist,
     }
-
-
-def homography_estimation(exper_name, keep_k_points=1000, correctness_thresh=3):
-    """
-    Estimates the homography between two images given the predictions.
-    The experiment must contain in its output the prediction on 2 images, an original
-    image and a warped version of it, plus the homography linking the 2 images.
-    Outputs the correctness score.
-    """
-    paths = get_paths(exper_name)
-    correctness = []
-    for path in paths:
-        data = np.load(path)
-        estimates = compute_homography(data, keep_k_points, correctness_thresh)
-        correctness.append(estimates["correctness"])
-    return np.mean(correctness)
-
-
-def get_homography_matches(
-    exper_name, keep_k_points=1000, correctness_thresh=3, num_images=1
-):
-    """
-    Estimates the homography between two images given the predictions.
-    The experiment must contain in its output the prediction on 2 images, an original
-    image and a warped version of it, plus the homography linking the 2 images.
-    Outputs the keypoints shared between the two views,
-    a mask of inliers points in the first image, and a list of matches meaning that
-    keypoints1[i] is matched with keypoints2[matches[i]]
-    """
-    paths = get_paths(exper_name)
-    outputs = []
-    for path in paths[:num_images]:
-        data = np.load(path)
-        output = compute_homography(data, keep_k_points, correctness_thresh)
-        output["image1"] = data["image"]
-        output["image2"] = data["warped_image"]
-        outputs.append(output)
-    return outputs

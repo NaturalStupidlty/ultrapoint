@@ -1,4 +1,5 @@
 import numpy as np
+from ultrapoint.loggers.loguru import logger
 
 
 class PointTracker(object):
@@ -105,12 +106,11 @@ class PointTracker(object):
           desc - DxN numpy array of corresponding D dimensional descriptors.
         """
         if pts is None or desc is None:
-            print("PointTracker: Warning, no points were added to tracker.")
+            logger.warning("PointTracker: Warning, no points were added to tracker.")
             return
         pts = pts.transpose()
         desc = desc.transpose()
         assert pts.shape[1] == desc.shape[1]
-        # assert pts.shape[0] == desc.shape[0]
         # Initialize last_desc.
         if self.last_desc is None:
             self.last_desc = np.zeros((desc.shape[0], 0))

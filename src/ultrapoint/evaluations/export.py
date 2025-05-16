@@ -48,11 +48,11 @@ def export_descriptors(config, output_directory):
 
         predictions = {
             "image": squeeze_to_numpy(sample["image"]),
-            "prob": points0,
-            "desc": descriptors0,
+            "keypoints": points0,
+            "descriptor": descriptors0,
             "warped_image": sample["warped_image"],
-            "warped_prob": points1,
-            "warped_desc": descriptors1,
+            "warped_keypoints": points1,
+            "warped_descriptor": descriptors1,
             "homography": squeeze_to_numpy(sample["homography"]),
             "matches": matches,
         }
