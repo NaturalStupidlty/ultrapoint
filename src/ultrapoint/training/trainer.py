@@ -83,33 +83,34 @@ class Trainer:
 
     def train(self):
         """
-        # outer loop for training
-        # control training and validation pace
-        # stop when reaching max iterations
-        :return:
+        Outer loop for training and validation control.
+        Stops at max iterations.
         """
         logger.info(f"Training iterations: {self._max_iterations}")
-
         running_losses = []
-        # TODO: pretty tqdm logs
+
         while self._iteration < self._max_iterations:
             try:
                 logger.info(f"Epoch: {self._epoch}")
+                self.model.train()
                 for sample_train in tqdm(self.train_loader):
                     loss = self.process_sample(sample_train, self._iteration, "train")
                     running_losses.append(loss)
 
-                    if self._iteration + 1 % self._config["save_interval"] == 0:
+                    if self._iteration % self._config["save_interval"] == 0:
                         logger.info(f"Current iteration: {self._iteration}")
                         self.save()
 
                     if (
-                        self._eval
-                        and self._iteration + 1 % self._config["validation_interval"] == 0
+                            self._eval
+                            and self._iteration % self._config["validation_interval"] == 0
                     ):
                         logger.info("Validating...")
-                        for i, sample_val in enumerate(self.val_loader):
-                            self.process_sample(sample_val, self._iteration + i, "val")
+                        self.model.eval()  # Switch to eval mode
+                        with torch.no_grad():
+                            for i, sample_val in enumerate(self.val_loader):
+                                self.process_sample(sample_val, self._iteration + i, "val")
+                        self.model.train()  # Switch back to train mode
 
                     if self._iteration > self._max_iterations:
                         logger.info(f"End training: {self._max_iterations}")
@@ -168,9 +169,10 @@ class Trainer:
             f"Detection threshold: {self._config['model']['detection_threshold']}",
         )
         logger.info(f"Batch size: {self._config['model']['batch_size']}")
-        logger.info(f"Descriptor: {self._desc_loss_type}")
-        for item in list(self._desc_params):
-            logger.info(f"{item} : {self._desc_params[item]}")
+        if hasattr(self, '_desc_loss_type'):
+            logger.info(f"Descriptor: {self._desc_loss_type}")
+            for item in list(self._desc_params):
+                logger.info(f"{item} : {self._desc_params[item]}")
 
     def _load_model(self):
         """
@@ -219,40 +221,39 @@ class Trainer:
     def process_sample(self, sample, iteration=0, task="val"):
         assert task in ["train", "val"], "task should be either train or val"
 
-        images, labels, mask = (
-            sample["image"].to(self._device),
-            sample["labels_2D"].to(self._device),
-            sample["mask"],
-        )
+        images = sample["image"].to(self._device)
+        labels = sample["labels_2D"].to(self._device)
+        mask = sample["mask"].to(self._device)
+
+        scalar_logs = {}
+
         warped_image = None
         if self._image_warping:
-            warped_image, warped_labels, warped_mask = (
-                sample["warped_img"].to(self._device),
-                sample["warped_labels"],
-                sample["warped_mask"],
-            )
-            mat_H, mat_H_inv = sample["homographies"], sample["inv_homographies"]
+            warped_image = sample["warped_img"].to(self._device)
+            warped_labels = sample["warped_labels"].to(self._device)
+            warped_mask = sample["warped_mask"].to(self._device)
+            mat_H = sample["homographies"]
+            mat_H_inv = sample["inv_homographies"]
 
-        self._optimizer.zero_grad()
         if task == "train":
+            self._optimizer.zero_grad()
             outputs = self._forward_step(images, warped_sample=warped_image)
         else:
             with torch.no_grad():
                 outputs = self._forward_step(images, warped_sample=warped_image)
 
         labels_3D = labels2Dto3D(
-            labels,
-            cell_size=self._cell_size,
-            add_dustbin=self._add_dustbin,
+            labels, cell_size=self._cell_size, add_dustbin=self._add_dustbin
         ).float()
         mask_3D_flattened = self.get_masks(mask, self._cell_size, device=self._device)
+
         loss_det = detector_loss(
             predictions=outputs["detector_features"],
             labels=labels_3D.to(self._device),
             mask=mask_3D_flattened.to(self._device),
             loss_type=self._det_loss_type,
         )
-        loss_det_warp = torch.tensor([0]).float().to(self._device)
+        loss_det_warp = torch.tensor([0], dtype=torch.float32, device=self._device)
 
         if self._image_warping:
             labels_3D = labels2Dto3D(
@@ -275,7 +276,7 @@ class Trainer:
 
         # descriptor loss
         if lambda_loss > 0:
-            assert self._image_warping is True, "need a pair of images"
+            assert self._image_warping, "Descriptor loss requires a warped pair"
             loss_desc, mask, positive_dist, negative_dist = self._descriptor_loss(
                 outputs["descriptor_features"],
                 outputs["warped_descriptor_features"],
@@ -285,22 +286,20 @@ class Trainer:
                 **self._desc_params,
             )
         else:
-            ze = torch.tensor([0]).to(self._device)
-            loss_desc, positive_dist, negative_dist = ze, ze, ze
+            zero = torch.tensor([0], dtype=torch.float32, device=self._device)
+            loss_desc, positive_dist, negative_dist = zero, zero, zero
 
         loss = loss_det + loss_det_warp
         if lambda_loss > 0:
             loss += lambda_loss * loss_desc
 
-        self._scalar_logs.update(
-            {
-                "loss": loss,
-                "loss_det": loss_det,
-                "loss_det_warp": loss_det_warp,
-                "positive_dist": positive_dist,
-                "negative_dist": negative_dist,
-            }
-        )
+        scalar_logs.update({
+            "loss": loss.item(),
+            "loss_det": loss_det.item(),
+            "loss_det_warp": loss_det_warp.item(),
+            "positive_dist": positive_dist.item(),
+            "negative_dist": negative_dist.item(),
+        })
 
         if task == "train":
             loss.backward()
@@ -314,17 +313,16 @@ class Trainer:
             preds_scores = [sc.detach().cpu().numpy() for sc in outputs["keypoint_scores"]]
             gt_kpts = [mask_to_keypoints(lbl) for lbl in sample["labels_2D"]]
 
-            # compute mean mAP / Recall@5px / Precision@5px over the batch
             mean_batch_metrics = compute_batch_metrics(
                 batch_predictions_keypoints=preds_kpts,
                 batch_predictions_scores=preds_scores,
                 batch_labels_keypoints=gt_kpts,
                 dist_thresh=5,
             )
-            self._scalar_logs.update(mean_batch_metrics)
-            log_scalars(self._scalar_logs, task)
+            scalar_logs.update(mean_batch_metrics)
+            log_scalars(scalar_logs, task)
 
-        self._tensorboard_logger.log_scalars(iteration, self._scalar_logs, task)
+        self._tensorboard_logger.log_scalars(iteration, scalar_logs, task)
         return loss.item()
 
     def _forward_step(self, sample, warped_sample: None):
