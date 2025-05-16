@@ -37,7 +37,10 @@ class HPatchesDataset(data.Dataset):
             normalized=True,
         )
         warped_image = read_image(
-            self._samples["warped_image"][index], keep_ratio=True, normalized=True
+            self._samples["warped_image"][index],
+            self._resize,
+            keep_ratio=True,
+            normalized=True
         )
         homography = self.rescale_homography(
             Image.open(self._samples["image"][index]).size,
