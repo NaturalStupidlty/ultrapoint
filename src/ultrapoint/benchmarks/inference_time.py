@@ -1,8 +1,6 @@
-import time
 import torch
 import argparse
 
-from typing import Union
 from loguru import logger
 
 from ultrapoint.models.factories import SuperPointModelsFactory

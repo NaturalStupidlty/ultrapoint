@@ -1,6 +1,6 @@
 data:
     dataset: 'ImagesDataset'
-    val_images_folder: '../../../Data/navigation/ss/ir/train/all'
+    val_images_folder: '../../../Data/coco2014/train/images'
     val_labels_folder: null
     cache_in_memory: false
     truncate: null
@@ -20,17 +20,17 @@ data:
         enable: false
     warped_pair:
         enable: false
-
+    
     train_workers: 16
     val_workers: 16
 
 model:
     name: 'SuperPoint'
-    pretrained: '../assets/logs/superpoint_ssir_2024-10-09_17:51:48/checkpoints/SuperPointNet_200000_checkpoint.pth.tar'
-    detection_threshold: 0.005
+    pretrained: '../assets/logs/magicpoint_synth_2025-05-04_14:52:55/checkpoints/SuperPoint_199000_checkpoint.pth.tar'
+    detection_threshold: 0.015
     nms_radius: 4
     max_num_keypoints: 1024
-    remove_borders: 4
+    remove_borders: 8
     batch_size: 1
     eval_batch_size: 1
 

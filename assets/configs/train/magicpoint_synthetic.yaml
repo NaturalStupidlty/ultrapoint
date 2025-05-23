@@ -145,10 +145,10 @@ model:
     batch_size: 32
     eval_batch_size: 32
     learning_rate: 0.001
-    detection_threshold: 0.001 # 1/65
+    detection_threshold: 0.015
     nms_radius: 4
-    remove_borders: 4
-    max_num_keypoints: null
+    remove_borders: 8
+    max_num_keypoints: 512
     lambda_loss: 0 # disable descriptor loss
     dense_loss:
         enable: false

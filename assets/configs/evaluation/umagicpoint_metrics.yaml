@@ -35,14 +35,14 @@ data:
     val_workers: 12
 
 model:
-    name: 'SuperPointPretrained'
-    pretrained: '../assets/pretrained/superpoint_v6_from_tf.pth'
+    name: 'SuperPointLight'
+    pretrained: '../assets/logs/magicpoint_light_2025-05-11_18:49:42/checkpoints/SuperPointLight_25000_checkpoint.pth.tar'
     detection_threshold: 0.015
     nms_radius: 4
-    max_num_keypoints: 512
-    remove_borders: 4
-    batch_size: 32
-    eval_batch_size: 32
+    max_num_keypoints: 1024
+    remove_borders: 8
+    batch_size: 8
+    eval_batch_size: 8
 
 seed: 0
 precision: medium

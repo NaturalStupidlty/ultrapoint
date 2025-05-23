@@ -1,0 +1,73 @@
+data:
+    train_labels_folder: '../../../Data/coco2014/train/pseudo_labels'
+    train_images_folder: '../../../Data/coco2014/train/images'
+    val_labels_folder: '../../../Data/coco2014/val/pseudo_labels'
+    val_images_folder: '../../../Data/coco2014/val/images'
+    augmentation:
+        homographic:
+            enable_train: false
+            enable_val: false
+            valid_border_margin: 0
+        photometric:
+            enable_train: false
+            enable_val: false
+            random_order: false
+
+    cache_in_memory: false
+    dataset: "ImagesDataset"
+    homography_adaptation:
+        enable: false
+    num_parallel_calls: 10
+    preprocessing:
+        resize: [240, 320]
+    val_workers: 16
+    train_workers: 16
+    truncate: null
+    warped_pair:
+        enable: true
+        params:
+            allow_artifacts: true
+            max_angle: 1.57
+            patch_ratio: 0.85
+            perspective: true
+            perspective_amplitude_x: 0.2
+            perspective_amplitude_y: 0.2
+            rotation: true
+            scaling: true
+            scaling_amplitude: 0.2
+            translation: true
+        valid_border_margin: 3
+logging:
+    directory: "../assets/logs"
+    level: "DEBUG"
+model:
+    batch_size: 2
+    dense_loss:
+        enable: true
+        params:
+            descriptor_dist: 4
+            lambda_d: 0.05
+    detection_threshold: 0.007 # 0.007
+    detector_loss:
+        enable: true
+        loss_type: "softmax"
+    eval_batch_size: 2
+    lambda_loss: 10000
+    learning_rate: 0.001
+    name: "UltraPoint"
+    pretrained: null
+    nms_radius: 4
+    remove_borders: 8
+    max_num_keypoints: null
+    params: {}
+    sparse_loss:
+        enable: false
+
+precision: medium
+pretrained: null
+reset_iter: true
+save_interval: 1000
+seed: 0
+tensorboard_interval: 100
+train_iter: 600000
+validation_interval: 1000
