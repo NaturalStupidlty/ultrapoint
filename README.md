@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Paper](https://img.shields.io/badge/📄_Paper-Bachelor's_Thesis-blue?style=for-the-badge)](https://zenodo.org/records/17308717?preview=1&token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6ImZjN2M3YWU1LWQ1MzUtNDExOS05ZjJmLTIxM2UxOWQwMWI3MCIsImRhdGEiOnt9LCJyYW5kb20iOiI4ZWVkYzJhYjZlNDI1Y2NlNzI0N2ZjNzE2ZDJhNjYxZiJ9.Pcava9fG7kGmaT7D5uFVF8jfTR_yf6pjaJCHy91PvWpdysxdf4yjQY1iIPGNvO1bwZU2YCPo9opj0FKlUiHR7A)
+[![Paper](https://img.shields.io/badge/📄_Paper-Bachelor's_Thesis-blue?style=for-the-badge)](https://zenodo.org/records/17563864?preview=1&token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6ImNjMGMyNTRjLTBmNjAtNDJhMC05ZjdjLWUxMDk3Y2Y0NTIzMCIsImRhdGEiOnt9LCJyYW5kb20iOiI0NTM3NjMxMjk0M2E2YTM3MDYzZGVjODY5YjViMmUwZiJ9.BzvJUgvUTY-iC9t2lwAg24yZV7fboqi8cAzwIFs-DuUCEMTk_XmTW8i2YKAzjBHxEAqizx9WGEyU-ma2ZzRWDg)
 [![HPatches](https://img.shields.io/badge/📊_Benchmark-HPatches-green?style=for-the-badge)](http://icvl.ee.ic.ac.uk/vbalnt/hpatches/)
 [![COCO](https://img.shields.io/badge/📊_Dataset-MS--COCO_2014-orange?style=for-the-badge)](http://cocodataset.org/#download)
 
